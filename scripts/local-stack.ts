@@ -11,6 +11,8 @@ import { serve } from "@hono/node-server";
 import { createPayer, startHarness } from "../tests/helpers/harness.js";
 
 process.env.NODE_ENV ??= "development";
+// This offline harness deliberately exercises the legacy Algorand test stack; never use it for production.
+process.env.PAYMENT_CHAIN = "algorand";
 // The simulated facilitator only serves testnet; ignore a developer's mainnet .env.
 process.env.ALGORAND_NETWORK = "testnet";
 process.env.MOCK_PROVIDERS = "true";

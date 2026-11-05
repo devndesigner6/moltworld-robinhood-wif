@@ -398,8 +398,9 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const selectedViewports = VIEWPORTS.filter(v => !process.env.UI_VIEWPORT || v.name === process.env.UI_VIEWPORT);
 if (!selectedViewports.length) throw new Error("Unknown UI_VIEWPORT");
 const stack = await startStack();
-const browser = await chromium.launch();
+let browser;
 try {
+  browser = await chromium.launch();
   current = "site";
   const { pages, broken } = await crawlSite();
   console.log(`${pages.length} pages: ${pages.join(" ")}`);
@@ -415,7 +416,7 @@ try {
     }
   }
 } finally {
-  await browser.close();
+  if (browser) await browser.close();
   stack.kill();
 }
 
