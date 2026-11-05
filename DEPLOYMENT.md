@@ -2,7 +2,7 @@
 
 ## Target architecture
 
-This codebase is a single Hono/Node service: the same process serves the website and Playground, the x402 API, request ledger hooks, and receipts. For the current layout, deploy one web service on **Render**. Vercel is not needed unless the frontend is split into a separate deployable application.
+This codebase is a single Hono/Node service: the same Render process serves the website and Playground, x402 API, request ledger hooks, and receipts. The public `https://motoworld-wif.vercel.app` hostname is a Vercel external rewrite proxy to `https://motoworld-wif.onrender.com`. Keep provider/database secrets on Render; Vercel does not need them.
 
 Keep the original Algorand site running until the new Robinhood deployment has passed the live readiness checks and you explicitly approve the cutover. No deployment or production transaction should be used as a substitute for this checklist.
 
@@ -23,12 +23,12 @@ Add the following only in Render's environment settings or secure secret store; 
 | --- | --- |
 | `DATABASE_URL` | Render PostgreSQL internal connection URL; production receipts and payment records require durable PostgreSQL. |
 | `RECEIPT_SIGNING_KEY` | A generated base64 32-byte Ed25519 seed. Generate a new secret specifically for this deployment and preserve it for receipt verification. |
-| `OPENAI_API_KEY` or `OPENROUTER_API_KEY` | A real provider credential with at least one supported chat model. |
+| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | A real provider credential with at least one supported chat model. |
 | `ADMIN_TOKEN` | A strong random bearer token if operator endpoints are needed; otherwise leave unset. |
 | `REDIS_URL` | Recommended before scaling beyond one app instance, because replay locks and concurrent spend reservations are shared through Redis. |
 | `FACILITATOR_URL` | Optional override if not using the documented Primer facilitator. |
 
-Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, and `WIF_TOKEN_ADDRESS` exactly as in `.env.example`. Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Configure `PUBLIC_DOMAIN` for the chosen new deployment hostname until the existing domain is intentionally moved.
+Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, and `WIF_TOKEN_ADDRESS` exactly as in `.env.example`. Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app`. The Vercel rewrite target is the fixed Render hostname; if either hostname changes, update the Vercel route and Render `PUBLIC_DOMAIN` together. Render's free web service may sleep when idle, so allow its first request to wake it.
 
 ## Build and run commands
 
@@ -46,10 +46,10 @@ Do not direct `moltworld.xyz` traffic or advertise mainnet checkout until all of
 
 1. Required secrets and persistent services are set.
 2. Render build succeeds and `/health` is ready, with the app reporting Robinhood Chain mainnet and real providers.
-3. Facilitator reports Robinhood Chain plus the WIF Permit2 scheme as supported.
+3. Facilitator reports Robinhood Chain plus the WIF Permit2 scheme as supported; Primer documents `eip155:4663` and Permit2 for ERC-20 tokens.
 4. The production WIF/USD source reports an acceptable current price and liquidity.
 5. MetaMask/Robinhood Wallet connects to chain 4663, WIF balance is readable, and the first-use exact Permit2 approval is understandable (users need a small ETH gas balance for that approval).
-6. A separately approved, low-value real transaction is observed on Blockscout, is paid in WIF to the configured `payTo`, is stored durably, and produces a valid signed receipt.
-7. User-facing pages and support text clearly distinguish enabled chat from disabled legacy Algorand features.
+6. A user-signed, low-value real transaction is observed on Blockscout, is paid in WIF to the configured `payTo`, is stored durably, and produces a valid signed receipt. No application test has broadcast this transaction.
+7. User-facing pages and support text clearly distinguish enabled WIF chat, Python/TypeScript/MCP clients, and disabled legacy Algorand features.
 
 No test fixture, local simulated settlement, or mock transaction satisfies item 6. The migration currently disables non-chat modalities, old mandate flows, marketplace payouts, and automatic WIF refunds; these must be implemented and tested before the full website can be described as migrated.

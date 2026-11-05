@@ -93,6 +93,8 @@ function header(path: string): string {
     })
     .join("");
   const links = NAV_LINKS.map((l) => `<li class="nav-item${isCurrent(path, l.href) ? " active" : ""}"><a class="nav-direct" href="${l.href}">${l.label}</a></li>`).join("");
+  const quickstartUrl = config.paymentChain === "robinhood" ? "/developers" : `${config.docsUrl}/quickstart`;
+  const githubUrl = config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-robinhood-wif" : "https://github.com/hackcat29/moltworld-x402";
   return `<header class="site" id="siteHeader">
     <div class="wrap bar">
       <a class="brand" href="/" aria-label="Moltworld home">${wordmark()}</a>
@@ -100,12 +102,12 @@ function header(path: string): string {
         <ul class="nav-list">${menus}${links}</ul>
         <div class="nav-mobile-cta">
           <a class="btn" href="/playground">Open Playground ${icon("arrow", 16)}</a>
-          <a class="btn btn-ghost" href="${config.docsUrl}/quickstart">Quickstart</a>
+          <a class="btn btn-ghost" href="${quickstartUrl}">Quickstart</a>
         </div>
       </nav>
       <div class="header-actions">
         <a class="status" id="netStatus" href="/stats" title="Gateway status"><span class="pulse" aria-hidden="true"></span><span id="netLabel">${network}</span></a>
-        <a class="icon-btn" href="https://github.com/hackcat29/moltworld-x402" aria-label="Moltworld on GitHub" title="GitHub">${icon("github", 18)}</a>
+        <a class="icon-btn" href="${githubUrl}" aria-label="Moltworld on GitHub" title="GitHub">${icon("github", 18)}</a>
         <a class="btn btn-header" href="/playground">Playground ${icon("arrow", 14)}</a>
         <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav"><span class="menu-lines" aria-hidden="true"></span><span class="menu-text">Menu</span></button>
       </div>

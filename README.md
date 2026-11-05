@@ -2,7 +2,7 @@
 
 Moltworld is an x402 pay-per-request gateway for AI services. This repository is the migration worktree for settling eligible requests in **WIF (World Is Flat)** on **Robinhood Chain** instead of USDC on Algorand.
 
-> **Migration status:** the current WIF checkout path is chat-only. Algorand-specific mandates, creator marketplace/payouts, and automatic USDC refunds are disabled on the Robinhood rail. Do not treat this code as a completed production cutover until provider credentials, PostgreSQL, receipt signing, facilitator support, and deployment configuration are supplied and verified.
+> **Migration status:** Robinhood WIF checkout is chat-only. The TypeScript SDK, Python SDK, local MCP payer, and remote MCP relay support that WIF chat path. Algorand-specific mandates, creator marketplace/payouts, image/voice/video, and automatic WIF refunds are not migrated. A successful mainnet payment still requires a user wallet to approve any first-use allowance and sign a real payment.
 
 ## Payment addresses
 
@@ -42,22 +42,21 @@ node_modules/.bin/tsx scripts/build-vendor.ts
 
 The automated tests use deterministic test fixtures and do not broadcast a blockchain payment. The WIF price adapter used by the running application uses live pool data and fails closed; the code does not create simulated production settlements.
 
-## Production configuration
+## Public deployment
 
-See [`.env.example`](.env.example) for public settings and required variable names. Production requires `NODE_ENV=production`, `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, your public `EVM_ADDRESS`, the WIF contract, a real OpenAI or OpenRouter key for chat, PostgreSQL, an Ed25519 receipt seed, and `MOCK_PROVIDERS=false` / `SKIP_UPSTREAM_VERIFICATION=false`. Configure secrets directly in the hosting provider—do not put them in Git or send wallet secrets in chat.
+The public website and API origin is [motoworld-wif.vercel.app](https://motoworld-wif.vercel.app). Vercel proxies requests to the Render Hono service at `https://motoworld-wif.onrender.com`; Render holds the database connection and provider/receipt secrets. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app` so x402 challenges and canonical links use the public origin. Vercel does not need the database URL or provider key.
 
-The current application serves the web pages, Playground, API, and x402 gateway from one Hono/Node service, so **Render is the appropriate single host for this repository as it stands**. There is no separate frontend project to deploy to Vercel unless the application is split later.
+See [`.env.example`](.env.example) for the service settings. Production requires `NODE_ENV=production`, `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, the public `EVM_ADDRESS`, WIF contract, a real OpenAI or OpenRouter key, PostgreSQL, a receipt signing seed, and `MOCK_PROVIDERS=false` / `SKIP_UPSTREAM_VERIFICATION=false`. Keep secrets in Render, not Git. The Render free service can sleep when idle; its first request may take time to wake.
 
 ## Scope not yet migrated
 
-- WIF settlement and refunds for image, voice, video, and marketplace calls.
+- WIF settlement/refunds for image, voice, and video calls.
 - Creator marketplace listing signatures, royalty accounting, and WIF payouts.
 - Algorand mandate/LogicSig replacement with an EVM-compatible delegation model.
-- Full rewrite of the legacy Algorand marketing/docs pages and a mainnet end-to-end transaction test.
-- Render service/database setup, credentials, RPC accessibility verification, and a separately approved mainnet transaction test.
+- A real mainnet wallet payment and settlement/receipt check. The current validation has not signed or broadcast a user payment.
 
 The code deliberately blocks these legacy-only payment actions on the Robinhood rail rather than silently routing them through Algorand.
 
 ## Source and license
 
-This fresh private [migration repository](https://github.com/devndesigner6/moltworld-robinhood-wif) is based on the MIT-licensed [`hackcat29/moltworld-x402`](https://github.com/hackcat29/moltworld-x402) codebase. The original license is retained in [`LICENSE`](LICENSE); the new repository has its own history and is not a fork.
+This public [migration repository](https://github.com/devndesigner6/moltworld-robinhood-wif) is based on the MIT-licensed [`hackcat29/moltworld-x402`](https://github.com/hackcat29/moltworld-x402) codebase. The original license is retained in [`LICENSE`](LICENSE); the new repository has its own history and is not a fork.

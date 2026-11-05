@@ -12,6 +12,7 @@ export function catalog() {
   return defaultModelRegistry
     .getEnabledModels()
     .filter((m) => defaultProviderRegistry.supports(m))
+    .filter((m) => config.paymentChain !== "robinhood" || m.modality === "chat")
     .map((m: ModelDefinition) => ({
       slug: m.slug,
       name: m.displayName,
@@ -229,6 +230,9 @@ export function payConfigScript(): string {
 }
 
 export function quoteWidget(): string {
+  const snippetTabs = [["mcp", "MCP", "snipMcp"], ["curl", "curl", "snipCurl"], ["ts", "TypeScript", "snipTs"], ["py", "Python", "snipPy"]];
+  const tabButtons = snippetTabs.map(([id, label], index) => `<button role="tab" type="button" id="t-snip-${id}" aria-controls="p-snip-${id}" aria-selected="${index === 0}"${index ? ' tabindex="-1"' : ""}>${label}</button>`).join("");
+  const tabPanels = snippetTabs.map(([id, , codeId], index) => `<div role="tabpanel" id="p-snip-${id}" aria-labelledby="t-snip-${id}"${index ? " hidden" : ""}><pre><code id="${codeId}"></code></pre></div>`).join("");
   return `
       ${payerWidget()}
       <div class="grid-2">
@@ -237,7 +241,7 @@ export function quoteWidget(): string {
           <select id="qModel" name="model"></select>
           <div data-for="chat">
             <label for="qMessage">Message</label>
-            <textarea id="qMessage" maxlength="32000">Explain how x402 payments work on Algorand in two sentences.</textarea>
+            <textarea id="qMessage" maxlength="32000">${config.paymentChain === "robinhood" ? "Explain how x402 payments work on Robinhood Chain in two sentences." : "Explain how x402 payments work on Algorand in two sentences."}</textarea>
             <label for="qMaxTokens">max_tokens <span class="note" id="qMaxNote"></span></label>
             <input id="qMaxTokens" type="number" min="1" value="300" inputmode="numeric">
           </div>
@@ -251,7 +255,7 @@ export function quoteWidget(): string {
           </div>
           <div data-for="voice" class="hidden">
             <label for="qInput">Text to speak</label>
-            <textarea id="qInput">Welcome to Moltworld, pay-per-request AI on Algorand.</textarea>
+            <textarea id="qInput">${config.paymentChain === "robinhood" ? "Welcome to Moltworld, pay-per-request AI on Robinhood Chain." : "Welcome to Moltworld, pay-per-request AI on Algorand."}</textarea>
             <div id="qVoiceWrap"><label for="qVoice">Voice</label><select id="qVoice"></select></div>
           </div>
           <div data-for="video" class="hidden">
@@ -273,17 +277,11 @@ export function quoteWidget(): string {
       <div class="code-card" style="margin-top:16px">
         <div class="code-top">
           <div role="tablist" aria-label="Request code">
-            <button role="tab" type="button" id="t-snip-mcp" aria-controls="p-snip-mcp" aria-selected="true">MCP</button>
-            <button role="tab" type="button" id="t-snip-curl" aria-controls="p-snip-curl" aria-selected="false" tabindex="-1">curl</button>
-            <button role="tab" type="button" id="t-snip-ts" aria-controls="p-snip-ts" aria-selected="false" tabindex="-1">TypeScript</button>
-            <button role="tab" type="button" id="t-snip-py" aria-controls="p-snip-py" aria-selected="false" tabindex="-1">Python</button>
+            ${tabButtons}
           </div>
           <button type="button" class="icon-btn" data-copy-tabs="snip" aria-label="Copy code">${icon("copy", 16)}</button>
         </div>
-        <div role="tabpanel" id="p-snip-mcp" aria-labelledby="t-snip-mcp"><pre><code id="snipMcp"></code></pre></div>
-        <div role="tabpanel" id="p-snip-curl" aria-labelledby="t-snip-curl" hidden><pre><code id="snipCurl"></code></pre></div>
-        <div role="tabpanel" id="p-snip-ts" aria-labelledby="t-snip-ts" hidden><pre><code id="snipTs"></code></pre></div>
-        <div role="tabpanel" id="p-snip-py" aria-labelledby="t-snip-py" hidden><pre><code id="snipPy"></code></pre></div>
+        ${tabPanels}
       </div>`;
 }
 

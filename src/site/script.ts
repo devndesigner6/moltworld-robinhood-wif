@@ -294,6 +294,7 @@ export const SITE_JS = String.raw`
   // ---------------------------------------------------------------- playground
   const quoteForm = $("quoteForm");
   if (quoteForm) {
+    const payConfig = (() => { const n = $("payConfig"); return n ? JSON.parse(n.textContent) : null; })();
     const MODELS = catalogData();
     const qModel = $("qModel"), out = $("quoteOut");
     for (const modality of ["chat", "image", "voice", "video"]) {
@@ -318,10 +319,26 @@ export const SITE_JS = String.raw`
     function renderSnippets() {
       const m = current(), body = bodyFor(m), json = JSON.stringify(body);
       const args = m.modality === "video" ? { model: m.slug, prompt: body.prompt, duration: body.duration, wait: true } : { model: m.slug, ...body };
-      $("snipMcp").textContent = "// Tool call through moltworld-mcp; it quotes, pays within your mandate and returns the result\n" + mcpTool[m.modality] + "(" + JSON.stringify(args, null, 2) + ")";
-      $("snipCurl").textContent = "curl -s " + ORIGIN + "/v1/quote -H 'Content-Type: application/json' \\\n  -d '" + JSON.stringify({ model: m.slug, ...body }).replace(/'/g, "'\\''") + "'\n\n# Pay with any x402 client that supports Algorand:\nPOST " + ORIGIN + m.endpoint;
-      $("snipTs").textContent = 'import { MoltworldClient } from "moltworld-sdk";\n\nconst client = new MoltworldClient({ mnemonic: process.env.ALGORAND_MNEMONIC, maxPerRequestUsd: 1 });\nconst res = await client.' + method[m.modality] + '("' + m.slug + '", ' + JSON.stringify(body, null, 2) + ");\nconsole.log(res.data, res.receipt?.txid);";
-      $("snipPy").textContent = "from moltworld import MoltworldClient\n\nclient = MoltworldClient(mnemonic=\"...\", max_per_request_usd=1)\nres = client.call(\"" + m.endpoint + "\", " + json.replace(/true/g, "True").replace(/false/g, "False") + ")\nprint(res.data, res.receipt[\"txid\"])";
+      if ($("snipMcp")) {
+        const isRobinhood = payConfig && payConfig.paymentChain === "robinhood";
+        $("snipMcp").textContent = isRobinhood
+          ? "// Local MCP setup (example; no call is simulated)\n// moltworld-mcp evm-keygen\n// key file: ~/.moltworld/robinhood-agent.key\n// MOLTWORLD_URL=" + ORIGIN + "\n// MOLTWORLD_MAX_PER_REQUEST_USD=0.25\n// MOLTWORLD_BUDGET_USD=5\n\nmoltworld_chat(" + JSON.stringify(args, null, 2) + ")"
+          : "// Tool call through moltworld-mcp; it quotes, pays within your mandate and returns the result\n" + mcpTool[m.modality] + "(" + JSON.stringify(args, null, 2) + ")";
+      }
+      if ($("snipCurl")) {
+        if (payConfig && payConfig.paymentChain === "robinhood") {
+          const requestJson = JSON.stringify({ model: m.slug, ...body }).replace(/'/g, "'\\''");
+          $("snipCurl").textContent = "curl -i -X POST '" + ORIGIN + m.endpoint + "' -H 'Content-Type: application/json' -d '" + requestJson + "'\n\n# A 402 response contains the exact WIF payment requirement. Use an EVM x402 client to authorize it.";
+        } else {
+          $("snipCurl").textContent = "curl -s " + ORIGIN + "/v1/quote -H 'Content-Type: application/json' \\\n  -d '" + JSON.stringify({ model: m.slug, ...body }).replace(/'/g, "'\\''") + "'\n\n# Pay with any x402 client that supports Algorand:\nPOST " + ORIGIN + m.endpoint;
+        }
+      }
+      if ($("snipTs")) $("snipTs").textContent = payConfig && payConfig.paymentChain === "robinhood"
+        ? 'import { MoltworldClient } from "moltworld-sdk";\n\n// evmSigner is an EIP-1193/viem-compatible Robinhood Chain signer.\nconst client = new MoltworldClient({ baseUrl: "' + ORIGIN + '", evmSigner, maxPerRequestUsd: 0.25, budgetUsd: 5 });\nconst res = await client.chat("' + m.slug + '", ' + JSON.stringify(body, null, 2) + ");\nconsole.log(res.data.choices[0].message.content);"
+        : 'import { MoltworldClient } from "moltworld-sdk";\n\nconst client = new MoltworldClient({ mnemonic: process.env.ALGORAND_MNEMONIC, maxPerRequestUsd: 1 });\nconst res = await client.' + method[m.modality] + '("' + m.slug + '", ' + JSON.stringify(body, null, 2) + ");\nconsole.log(res.data, res.receipt?.txid);";
+      if ($("snipPy")) $("snipPy").textContent = payConfig && payConfig.paymentChain === "robinhood"
+        ? "import os\nfrom moltworld import MoltworldClient\n\nclient = MoltworldClient(evm_private_key=os.environ[\"MOLTWORLD_EVM_PRIVATE_KEY\"], base_url=\"" + ORIGIN + "\", max_per_request_usd=0.25, budget_usd=5)\nres = client.chat(\"" + m.slug + "\", " + json.replace(/true/g, "True").replace(/false/g, "False") + ")\nprint(res.data[\"choices\"][0][\"message\"][\"content\"])"
+        : "from moltworld import MoltworldClient\n\nclient = MoltworldClient(mnemonic=\"...\", max_per_request_usd=1)\nres = client.call(\"" + m.endpoint + "\", " + json.replace(/true/g, "True").replace(/false/g, "False") + ")\nprint(res.data, res.receipt[\"txid\"])";
     }
     function syncForm() {
       const m = current();
@@ -388,7 +405,6 @@ export const SITE_JS = String.raw`
     });
 
     // -------------------------------------------------------------- paid runs (real x402 payments)
-    const payConfig = (() => { const n = $("payConfig"); return n ? JSON.parse(n.textContent) : null; })();
     let payMod = null, wallets = null, mandate = null, mandateKey = undefined, browserAgent = null, mode = "wallet";
     const loadPay = async () => (payMod ||= await import(document.body.dataset.paySrc));
     const short = (a) => a.slice(0, 6) + "..." + a.slice(-4);
@@ -444,7 +460,7 @@ export const SITE_JS = String.raw`
         wallets = await mod.createWallets(cfg());
       } catch (err) { list.replaceChildren(errorBox("Wallets unavailable: " + (err && err.message))); throw err; }
       if (!wallets.options.length) {
-        list.replaceChildren(el("span", { class: "note", text: "Install MetaMask or Robinhood Wallet to connect an account." }));
+        list.replaceChildren(el("span", { class: "note", text: "Open this page in MetaMask or Robinhood Wallet’s browser, or use a browser with its wallet extension." }));
         return wallets;
       }
       list.replaceChildren(...wallets.options.map((w) => {

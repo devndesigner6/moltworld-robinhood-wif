@@ -78,7 +78,7 @@ export class MoltworldClient {
 
   constructor(options: MoltworldClientOptions) {
     this.options = options;
-    this.baseUrl = (options.baseUrl ?? "https://moltworld.xyz").replace(/\/$/, "");
+    this.baseUrl = (options.baseUrl ?? "https://motoworld-wif.vercel.app").replace(/\/$/, "");
     // Bound so it can be called as a method; browsers reject fetch with a foreign `this`.
     this.baseFetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
     if (options.evmSigner) this.evmSigner = options.evmSigner;

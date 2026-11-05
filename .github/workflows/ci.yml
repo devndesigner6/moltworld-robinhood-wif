@@ -37,7 +37,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install py-algorand-sdk pynacl
+      - name: Install Python SDK and dependencies
+        run: python -m pip install -e sdk/python
+      - name: Run offline Python SDK tests
+        run: python -m unittest discover -s sdk/python/tests -p 'test_*.py'
       - run: pnpm install --frozen-lockfile
       - name: Typecheck gateway and SDK
         run: pnpm build

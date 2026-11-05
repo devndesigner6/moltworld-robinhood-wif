@@ -47,6 +47,10 @@ function modelView(m: ModelDefinition) {
   };
 }
 
+function modelAvailableOnPaymentRail(model: ModelDefinition): boolean {
+  return config.paymentChain !== "robinhood" || model.modality === "chat";
+}
+
 export async function handleHealth(c: Context): Promise<Response> {
   let ledger = "unavailable";
   try {
@@ -57,7 +61,9 @@ export async function handleHealth(c: Context): Promise<Response> {
     // reported below
   }
   const ready = isGatewayReady() && ledger !== "unavailable";
-  const models = defaultModelRegistry.getEnabledModels();
+  const models = defaultModelRegistry.getEnabledModels()
+    .filter((m) => defaultProviderRegistry.supports(m))
+    .filter(modelAvailableOnPaymentRail);
   const body = {
     status: ready ? "healthy" : "degraded",
     ready,
@@ -103,11 +109,13 @@ export function handleListModels(c: Context): Response {
   const models = defaultModelRegistry
     .getEnabledModels()
     .filter((m) => defaultProviderRegistry.supports(m))
+    .filter(modelAvailableOnPaymentRail)
     .filter((m) => !modality || m.modality === modality);
   const body: Record<string, unknown> = { object: "list", data: models.map(modelView) };
   if (c.req.query("include") === "unavailable") {
     body.unavailable = defaultModelRegistry
       .getAllModels()
+      .filter(modelAvailableOnPaymentRail)
       .filter((m) => !models.includes(m) && (!modality || m.modality === modality))
       .map((m) => ({
         id: m.slug,
@@ -131,6 +139,10 @@ export async function handleQuote(c: Context): Promise<Response> {
   if (!model) return apiError(c, 404, "model_not_found", `Unknown model '${slug}'.`);
   if (config.paymentChain === "robinhood" && model.modality !== "chat") {
     return apiError(c, 503, "migration_incomplete", "Robinhood WIF checkout is currently enabled for chat only.");
+  }
+  const unavailable = defaultModelRegistry.getUnavailableReason(model);
+  if (unavailable || !defaultProviderRegistry.supports(model)) {
+    return apiError(c, 503, "model_unavailable", `Model '${slug}' is not available: ${unavailable ?? "provider not configured"}. No payment was taken.`);
   }
   const { model: _ignored, ...request } = body;
   const result = validateBody(request, model);

@@ -27,7 +27,7 @@ const evmSigner = toClientEvmSigner({
 }, publicClient);
 
 const client = new MoltworldClient({
-  baseUrl: "https://moltworld.xyz",
+  baseUrl: "https://motoworld-wif.onrender.com",
   evmSigner,
   maxPerRequestUsd: 0.25,
   budgetUsd: 5,

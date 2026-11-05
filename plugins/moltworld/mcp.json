@@ -3,7 +3,7 @@
   "mcpServers": {
     "moltworld": {
       "type": "streamable-http",
-      "url": "https://moltworld.xyz/mcp"
+      "url": "https://motoworld-wif.vercel.app/mcp"
     }
   }
 }

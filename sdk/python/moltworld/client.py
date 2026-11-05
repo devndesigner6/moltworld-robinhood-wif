@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +23,7 @@ ALGOD = {
     "mainnet": "https://mainnet-api.algonode.cloud",
     "testnet": "https://testnet-api.algonode.cloud",
 }
+DEFAULT_API_ORIGIN = "https://motoworld-wif.vercel.app"
 
 
 class MoltworldError(Exception):
@@ -40,6 +42,9 @@ class PaidResult:
     verified: bool
     paid_micro: int
     replayed: bool
+    paid_atomic: Optional[int] = None
+    paid_asset: Optional[str] = None
+    paid_decimals: Optional[int] = None
 
 
 def canonical_json(value: Any) -> str:
@@ -57,7 +62,7 @@ def check_receipt(receipt: Dict[str, Any], public_key_b64: str, request: Optiona
     sig = base64.urlsafe_b64decode(receipt["sig"] + "=" * (-len(receipt["sig"]) % 4))
     try:
         VerifyKey(base64.b64decode(public_key_b64)).verify(canonical_json(payload).encode("utf-8"), sig)
-    except BadSignatureError:
+    except (BadSignatureError, KeyError, ValueError):
         return False
     if request is not None and _sha256(request) != receipt["requestSha256"]:
         return False
@@ -67,11 +72,16 @@ def check_receipt(receipt: Dict[str, Any], public_key_b64: str, request: Optiona
 
 
 class MoltworldClient:
-    """x402 client for Moltworld. Signs Algorand USDC payments locally; keys never leave the process."""
+    """Moltworld x402 client.
+
+    Algorand credentials use the legacy local transaction path. Supplying
+    ``evm_private_key`` selects the WIF path, which delegates all EVM/Permit2
+    typed-data construction and signing to x402 2.27.0.
+    """
 
     def __init__(
         self,
-        base_url: str = "https://moltworld.xyz",
+        base_url: str = DEFAULT_API_ORIGIN,
         private_key: Optional[str] = None,
         mnemonic: Optional[str] = None,
         mandate: Optional[Union[str, Dict[str, Any]]] = None,
@@ -81,15 +91,41 @@ class MoltworldClient:
         expected_pay_to: Optional[str] = None,
         algod_url: Optional[str] = None,
         timeout: float = 120.0,
+        evm_private_key: Optional[str] = None,
+        evm_rpc_url: Optional[str] = None,
     ):
-        # A mandate pays as its owner, co-signed by the agent's own key (agent_key).
         self._mandate = MandatePayer(mandate, agent_key) if mandate else None
         if mnemonic:
             private_key = algo_mnemonic.to_private_key(mnemonic)
-        if not private_key and not self._mandate:
-            raise ValueError("MoltworldClient needs private_key (algosdk base64), mnemonic, or mandate with agent_key.")
+        if evm_private_key and (private_key or mnemonic or mandate):
+            raise ValueError("Choose either Algorand credentials or evm_private_key, not both.")
+        self._evm = evm_private_key is not None
+        if not self._evm and not private_key and not self._mandate:
+            raise ValueError("MoltworldClient needs private_key (algosdk base64), mnemonic, evm_private_key, or mandate with agent_key.")
         self._sk = private_key
-        self.address = self._mandate.owner if self._mandate else address_from_private_key(private_key)
+        self._evm_private_key = evm_private_key
+        self._evm_rpc_url = evm_rpc_url
+        self.address = None
+        self._x402 = None
+        self._x402_http = None
+        if self._evm:
+            from eth_account import Account
+            from x402 import x402ClientSync
+            from x402.mechanisms.evm.exact import register_exact_evm_client
+            from x402.mechanisms.evm.signers import EthAccountSigner
+
+            account = Account.from_key(evm_private_key)
+            self.address = account.address
+            self._evm_signer = EthAccountSigner(account)
+            self._x402 = x402ClientSync()
+            register_exact_evm_client(self._x402, self._evm_signer)
+            # The gateway's WIF asset is intentionally non-default; the local
+            # guard below is the authoritative cap/asset policy.
+            self._x402.set_spend_controls(False)
+            from x402.http.x402_http_client import x402HTTPClientSync
+            self._x402_http = x402HTTPClientSync(self._x402)
+        else:
+            self.address = self._mandate.owner if self._mandate else address_from_private_key(private_key)
         self.base_url = base_url.rstrip("/")
         self.max_per_request_micro = int(round(max_per_request_usd * MICRO))
         self.budget_micro = None if budget_usd is None else int(round(budget_usd * MICRO))
@@ -135,7 +171,77 @@ class MoltworldClient:
         url = self._algod_url or ALGOD["mainnet" if self.health().get("network") == "mainnet" else "testnet"]
         return algod.AlgodClient("", url)
 
-    def _payment_header(self, payment_required: Dict[str, Any]) -> tuple[str, int]:
+    @staticmethod
+    def _wif_atomic_amount(quote_micro: int, price_scaled18: int, decimals: int = 18) -> int:
+        if quote_micro < 0 or price_scaled18 <= 0 or decimals != 18:
+            raise ValueError("Invalid WIF quote or price metadata.")
+        numerator = quote_micro * (10 ** (decimals + 12))
+        return (numerator + price_scaled18 - 1) // price_scaled18
+
+    def _validate_wif_requirement(self, req: Any) -> int:
+        """Validate all gateway-advertised WIF terms before x402 can sign."""
+        health = self.health()
+        expected_network = health.get("network_caip2")
+        expected_asset = health.get("payment_asset")
+        expected_pay_to = self._expected_pay_to or health.get("pay_to")
+        if health.get("payment_chain") != "robinhood":
+            raise MoltworldError("WIF payments require the Robinhood payment rail.", 402, "wrong_payment_chain")
+        if not isinstance(expected_network, str) or not expected_network.startswith("eip155:") or req.network != expected_network:
+            raise MoltworldError("Refusing a WIF payment on an unadvertised EVM chain.", 402, "unexpected_network")
+        if req.scheme != "exact":
+            raise MoltworldError("WIF requires the exact x402 scheme.", 402, "wrong_scheme")
+        if not expected_asset or req.asset.lower() != str(expected_asset).lower():
+            raise MoltworldError("Refusing a WIF payment for an unadvertised asset.", 402, "unexpected_asset")
+        if not expected_pay_to or req.pay_to.lower() != str(expected_pay_to).lower():
+            raise MoltworldError("Refusing to pay an unadvertised payTo address.", 402, "unexpected_payee")
+        extra = req.extra or {}
+        if extra.get("assetTransferMethod") != "permit2":
+            raise MoltworldError("WIF requires Permit2 exact transfer.", 402, "wrong_transfer_method")
+        if extra.get("symbol") != "WIF" or int(extra.get("decimals", -1)) != 18:
+            raise MoltworldError("WIF must be advertised as WIF with 18 decimals.", 402, "wrong_asset_metadata")
+        quote_micro = extra.get("quoteUsdMicro", extra.get("quotedUsdMicro"))
+        price_scaled = extra.get("wifPriceUsdScaled18")
+        if quote_micro is None or price_scaled is None:
+            raise MoltworldError("WIF payment is missing exact quote metadata.", 402, "missing_wif_quote")
+        try:
+            quote_micro = int(quote_micro)
+            price_scaled = int(price_scaled)
+            expected_atomic = self._wif_atomic_amount(quote_micro, price_scaled)
+            actual_atomic = int(req.amount)
+        except (TypeError, ValueError):
+            raise MoltworldError("WIF quote metadata is invalid.", 402, "invalid_wif_quote") from None
+        if actual_atomic != expected_atomic:
+            raise MoltworldError("WIF atomic amount does not exactly match the USD quote and price.", 402, "amount_mismatch")
+        if quote_micro > self.max_per_request_micro:
+            raise MoltworldError("WIF quote exceeds max_per_request_usd.", 402, "over_request_cap")
+        if self.budget_micro is not None and self.spent_micro + quote_micro > self.budget_micro:
+            raise MoltworldError("Budget would be exceeded.", 402, "over_budget")
+        return quote_micro
+
+    def _payment_header(self, payment_required: Dict[str, Any]) -> tuple[str, int, Optional[int], Optional[str], Optional[int]]:
+        if self._evm:
+            if not self._x402_http:
+                raise MoltworldError("EVM x402 client is not initialized.", 500)
+            try:
+                required = self._x402_http.get_payment_required_response(lambda name: base64.b64encode(json.dumps(payment_required).encode()).decode() if name.lower() == "payment-required" else None)
+                accepts = [req for req in required.accepts if req.network == self.health().get("network_caip2")]
+                if len(accepts) != 1:
+                    raise MoltworldError("No single exact WIF payment option offered.", 402)
+                quote_micro = self._validate_wif_requirement(accepts[0])
+                # Hook is deliberately before create_payment_payload; x402 then delegates Permit2 signing.
+                def guard(ctx: Any):
+                    self._validate_wif_requirement(ctx.requirements)
+                    return None
+                self._x402.on_before_payment_creation(guard)
+                payload = self._x402.create_payment_payload(required)
+                encoded = self._x402_http.encode_payment_signature_header(payload)["PAYMENT-SIGNATURE"]
+                req = accepts[0]
+                return encoded, quote_micro, int(req.amount), req.asset, int(req.extra["decimals"])
+            except MoltworldError:
+                raise
+            except Exception as err:
+                raise MoltworldError(f"WIF payment refused before signing: {err}", 402, "payment_guard_failed") from err
+
         accepts = [a for a in payment_required.get("accepts", []) if a.get("scheme") == "exact" and str(a.get("network", "")).startswith("algorand:")]
         if not accepts:
             raise MoltworldError("No Algorand exact payment option offered.", 402)
@@ -148,7 +254,6 @@ class MoltworldClient:
             raise MoltworldError(f"Price {amount / MICRO} USDC exceeds max_per_request_usd.", 402, "over_request_cap")
         if self.budget_micro is not None and self.spent_micro + amount > self.budget_micro:
             raise MoltworldError("Budget would be exceeded.", 402, "over_budget")
-
         sp = self._algod().suggested_params()
         fee_payer = (req.get("extra") or {}).get("feePayer")
         stamp = int(time.time() * 1000)
@@ -162,18 +267,10 @@ class MoltworldClient:
                 raise MoltworldError(str(err), 402, "mandate_refused") from err
             payload = {"x402Version": version, "payload": {"paymentGroup": group_b64, "paymentIndex": index}, "extensions": payment_required.get("extensions"), "resource": payment_required.get("resource"), "accepted": req}
             payload = {k: v for k, v in payload.items() if v is not None}
-            return base64.b64encode(json.dumps(payload).encode()).decode(), amount
+            return base64.b64encode(json.dumps(payload).encode()).decode(), amount, None, None, None
         pay_sp = transaction.SuggestedParams(0, sp.first, sp.last, sp.gh, sp.gen, flat_fee=True, min_fee=sp.min_fee)
-        payment = transaction.AssetTransferTxn(
-            sender=self.address,
-            sp=pay_sp if fee_payer else sp,
-            receiver=req["payTo"],
-            amt=amount,
-            index=int(req["asset"]),
-            note=f"x402-payment-v{version}-{stamp}".encode(),
-        )
+        payment = transaction.AssetTransferTxn(sender=self.address, sp=pay_sp if fee_payer else sp, receiver=req["payTo"], amt=amount, index=int(req["asset"]), note=f"x402-payment-v{version}-{stamp}".encode())
         if fee_payer:
-            # The facilitator sponsors fees: its zero-amount self-payment carries the whole group's fee.
             fee_sp = transaction.SuggestedParams(2 * max(sp.min_fee, 1000), sp.first, sp.last, sp.gh, sp.gen, flat_fee=True, min_fee=sp.min_fee)
             sponsor = transaction.PaymentTxn(sender=fee_payer, sp=fee_sp, receiver=fee_payer, amt=0, note=f"x402-fee-payer-{stamp}".encode())
             group = transaction.assign_group_id([sponsor, payment])
@@ -183,15 +280,9 @@ class MoltworldClient:
         else:
             group_b64 = [encoding.msgpack_encode(payment.sign(self._sk))]
             index = 0
-        payload = {
-            "x402Version": version,
-            "payload": {"paymentGroup": group_b64, "paymentIndex": index},
-            "extensions": payment_required.get("extensions"),
-            "resource": payment_required.get("resource"),
-            "accepted": req,
-        }
+        payload = {"x402Version": version, "payload": {"paymentGroup": group_b64, "paymentIndex": index}, "extensions": payment_required.get("extensions"), "resource": payment_required.get("resource"), "accepted": req}
         payload = {k: v for k, v in payload.items() if v is not None}
-        return base64.b64encode(json.dumps(payload).encode()).decode(), amount
+        return base64.b64encode(json.dumps(payload).encode()).decode(), amount, None, None, None
 
     # ------------------------------------------------------------------- api
     def quote(self, model: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -202,16 +293,22 @@ class MoltworldClient:
         return data["quote"]
 
     def call(self, path: str, body: Dict[str, Any]) -> PaidResult:
+        if self._evm and not re.search(r"/chat/completions$", path):
+            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
         request_bytes = json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}
         status, resp_headers, raw = self._request("POST", path, request_bytes, headers)
         lower = {k.lower(): v for k, v in resp_headers.items()}
         paid = 0
+        paid_atomic = None
+        paid_asset = None
+        paid_decimals = None
         if status == 402 and "payment-required" in lower:
             payment_required = json.loads(base64.b64decode(lower["payment-required"]))
-            header, paid = self._payment_header(payment_required)
+            header, paid, paid_atomic, paid_asset, paid_decimals = self._payment_header(payment_required)
             self.spent_micro += paid
-            status, resp_headers, raw = self._request("POST", path, request_bytes, {**headers, "Payment-Signature": header})
+            payment_header_name = "Payment-Signature" if self._evm else "Payment-Signature"
+            status, resp_headers, raw = self._request("POST", path, request_bytes, {**headers, payment_header_name: header})
             lower = {k.lower(): v for k, v in resp_headers.items()}
         try:
             data = json.loads(raw)
@@ -227,14 +324,11 @@ class MoltworldClient:
             receipt = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
             key = self.receipt_keys().get(receipt["kid"])
             verified = bool(key) and check_receipt(receipt, key, request_bytes, raw)
-        return PaidResult(
-            data=data,
-            request_id=lower.get("moltworld-request-id"),
-            receipt=receipt,
-            verified=verified,
-            paid_micro=receipt["amountMicro"] if receipt else paid,
-            replayed=lower.get("moltworld-replay") == "true",
-        )
+            if receipt.get("assetSymbol") == "WIF":
+                paid_atomic = int(receipt["amountAtomic"])
+                paid_asset = receipt["asset"]
+                paid_decimals = int(receipt["assetDecimals"])
+        return PaidResult(data=data, request_id=lower.get("moltworld-request-id"), receipt=receipt, verified=verified, paid_micro=receipt["amountMicro"] if receipt else paid, replayed=lower.get("moltworld-replay") == "true", paid_atomic=paid_atomic, paid_asset=paid_asset, paid_decimals=paid_decimals)
 
     def chat(self, model: str, messages: List[Dict[str, str]], max_tokens: Optional[int] = None, temperature: Optional[float] = None) -> PaidResult:
         body: Dict[str, Any] = {"messages": messages}
@@ -245,18 +339,24 @@ class MoltworldClient:
         return self.call(f"/v1/models/{model}/chat/completions", body)
 
     def image(self, model: str, prompt: str, n: int = 1, size: Optional[str] = None) -> PaidResult:
+        if self._evm:
+            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
         body: Dict[str, Any] = {"prompt": prompt, "n": n}
         if size:
             body["size"] = size
         return self.call(f"/v1/models/{model}/images/generations", body)
 
     def speech(self, model: str, text: str, voice: Optional[str] = None) -> PaidResult:
+        if self._evm:
+            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
         body: Dict[str, Any] = {"input": text}
         if voice:
             body["voice"] = voice
         return self.call(f"/v1/models/{model}/audio/speech", body)
 
     def video(self, model: str, prompt: str, duration: Optional[int] = None, wait: bool = False, timeout: float = 900) -> PaidResult:
+        if self._evm:
+            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
         body: Dict[str, Any] = {"prompt": prompt}
         if duration:
             body["duration"] = duration
@@ -266,6 +366,8 @@ class MoltworldClient:
         return result
 
     def market(self, slug: str, body: Dict[str, Any]) -> PaidResult:
+        if self._evm:
+            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
         return self.call(f"/v1/market/{slug}/call", body)
 
     def job(self, job_id: str) -> Dict[str, Any]:

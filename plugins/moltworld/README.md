@@ -1,22 +1,41 @@
 # Moltworld plugin
 
 Connects Claude Code, Codex and other MCP clients to Moltworld's remote MCP server at
-`https://moltworld.xyz/mcp`. The `.codex-plugin` manifest is kept for Codex compatibility.
+`https://motoworld-wif.vercel.app/mcp`. The `.codex-plugin` manifest is kept for Codex compatibility.
 
-Remote tools (no wallet, nothing is ever paid by the server):
+## Robinhood WIF remote tools
+
+The Robinhood deployment is chat-only on chain ID `4663`:
 
 | Tool | What it does |
 | --- | --- |
-| `list_models` | Live catalog with each model's upstream and "from" price |
-| `quote_request` | Exact USDC price for a request body, before paying |
-| `get_payment_requirements` | The live HTTP 402 challenge for that body |
-| `submit_signed_request` | Sends a request with a `Payment-Signature` your own wallet produced |
-| `get_job` / `get_receipt` | Video job status, signed receipts, rebates and refunds |
+| `list_models` | Chat-only catalog with WIF/USD from prices |
+| `quote_request` | Exact USD quote before signing |
+| `chat` | Relays a caller-signed WIF `Payment-Signature`; never signs or pays |
+| `spend` | Describes the remote rail and local-budget model |
 
-## Letting an agent pay on its own
+Images, speech, video, mandates, refunds, and marketplace are not live in Robinhood mode.
 
-For autonomous use, run the local MCP server from the SDK. It signs payments itself, within
-limits you set:
+```json
+{
+  "mcpServers": {
+    "moltworld": {
+      "type": "streamable-http",
+      "url": "https://motoworld-wif.vercel.app/mcp"
+    }
+  }
+}
+```
+
+## Letting a local agent pay
+
+Generate a dedicated Robinhood EVM key. Only its derived address is printed:
+
+```bash
+npx -y -p moltworld-sdk moltworld-mcp evm-keygen
+```
+
+Then run the local stdio server with local USD limits:
 
 ```json
 {
@@ -25,7 +44,7 @@ limits you set:
       "command": "npx",
       "args": ["-y", "-p", "moltworld-sdk", "moltworld-mcp"],
       "env": {
-        "MOLTWORLD_MANDATE": "<base64 credential bound to this agent's key (moltworld-mcp keygen)>",
+        "MOLTWORLD_URL": "https://motoworld-wif.vercel.app",
         "MOLTWORLD_MAX_PER_REQUEST_USD": "0.25",
         "MOLTWORLD_BUDGET_USD": "5"
       }
@@ -34,9 +53,11 @@ limits you set:
 }
 ```
 
-A mandate credential holds no private key. It is a delegated LogicSig that the Algorand
-protocol only lets pay Moltworld, at most the per-call amount, until it expires. Moltworld also
-enforces its daily cap and model allow-list, and the owner can revoke it at any time.
+The local server reads `~/.moltworld/robinhood-agent.key` (mode `0600`) or
+`MOLTWORLD_EVM_PRIVATE_KEY`, uses the existing JavaScript SDK EVM client, validates the
+gateway `paymentTo`, and enforces local USD caps before signing. It checks the WIF ERC-20
+allowance to Permit2 with read-only RPC and refuses before signing when insufficient. It
+never broadcasts an approval; approve the exact amount to Permit2 explicitly, with native
+ETH available for gas.
 
-The service also publishes an A2A catalog agent at
-`https://moltworld.xyz/.well-known/agent-card.json`, with JSON-RPC at `https://moltworld.xyz/a2a`.
+The legacy Algorand mandate/mnemonic mode remains available when no EVM key is configured.
