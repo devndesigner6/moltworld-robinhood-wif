@@ -1,5 +1,6 @@
-// Browser payments for the Playground: the Moltworld SDK (x402 over Algorand) with either a
-// connected wallet (use-wallet) or an agent mandate as the signer. Bundled by `pnpm vendor`.
+// Browser payments for the Playground: legacy Algorand wallet/mandate support plus
+// Robinhood Chain WIF payments through an injected MetaMask or Robinhood Wallet provider.
+// Bundled by `pnpm vendor`.
 import algosdk from "algosdk";
 import { custom, NetworkConfigBuilder, NetworkId, WalletManager, type WalletAdapterConfig } from "@txnlab/use-wallet";
 import { createPublicClient, createWalletClient, custom as evmCustom, defineChain, http, type Address } from "viem";

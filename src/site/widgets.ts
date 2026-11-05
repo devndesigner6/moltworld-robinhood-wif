@@ -177,10 +177,13 @@ export function payerWidget(): string {
   if (config.paymentChain === "robinhood") {
     return `
       <div class="card payer" id="payer">
+        <div class="payer-modes" role="group" aria-label="Pay with">
+          <button class="tab" type="button" data-payer-mode="wallet" aria-pressed="true">${icon("wallet", 16)}Wallet</button>
+          <button class="tab" type="button" disabled aria-disabled="true" title="Mandates are not available on Robinhood Chain">${icon("mandate", 16)}Mandate</button>
+        </div>
         <div class="payer-pane" data-pane="wallet">
-          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small" type="button" id="walletLoad">Connect MetaMask / Robinhood Wallet</button></div>
+          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small" type="button" id="walletLoad" aria-label="Connect MetaMask or Robinhood Wallet" title="Connect MetaMask or Robinhood Wallet">Connect wallet</button></div>
           <div class="payer-active hidden" id="walletActive"><span class="pulse" aria-hidden="true"></span><span class="mono" id="walletAddr"></span><span class="mono" id="walletBal"></span><button class="btn btn-ghost btn-small" type="button" id="walletOff">Disconnect</button></div>
-          <p class="note">Payments settle in WIF on Robinhood Chain. First use may ask for an exact WIF-to-Permit2 allowance and a small amount of native ETH for gas.</p>
         </div>
         <div class="payer-cap"><label for="capInput">Max per request (USD)</label><input id="capInput" type="number" min="0.001" step="0.01" value="1" inputmode="decimal"></div>
       </div>`;

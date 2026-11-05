@@ -2,7 +2,7 @@
 
 ## Target architecture
 
-This codebase is a single Hono/Node service: the same Render process serves the website and Playground, x402 API, request ledger hooks, and receipts. The public `https://motoworld-wif.vercel.app` hostname is a Vercel external rewrite proxy to `https://motoworld-wif.onrender.com`. Keep provider/database secrets on Render; Vercel does not need them.
+This codebase is a single Hono/Node service: the same Render process serves the website and Playground, x402 API, request ledger hooks, and receipts. The public `https://motoworld-wif.vercel.app` hostname proxies to `https://motoworld-wif.onrender.com` using external rewrites; the Vercel Hono function also forwards any function-routed paths, including `/`, to that fixed Render origin. Keep provider/database secrets on Render; Vercel does not need them.
 
 Keep the original Algorand site running until the new Robinhood deployment has passed the live readiness checks and you explicitly approve the cutover. No deployment or production transaction should be used as a substitute for this checklist.
 
@@ -13,7 +13,7 @@ Keep the original Algorand site running until the new Robinhood deployment has p
 - Merchant `payTo`: `0x0cbF84496640E7441eF743f8F03189Aa8C0B8cb6`.
 - The WIF contract address identifies the asset; `payTo` identifies your receiving wallet. The receiving address was found on Robinhood Chain Blockscout as a non-contract account. These values must never be swapped.
 - Default x402 facilitator: `https://x402.primer.systems`; production startup must verify that its supported-network response includes Robinhood Chain and the configured exact/Permit2 flow.
-- Live price source: the project-linked Robinhood WIF/ETH pool through DexScreener. It is off-chain market data, not an oracle. Low-liquidity, stale, inactive, or malformed responses are rejected.
+- Live price source: the configured Robinhood WIF pool through DexScreener, with GeckoTerminal as a fallback for that exact same pool. This is off-chain market data, not an oracle. Calls are coalesced and cached for 15 seconds; a validated prior snapshot can be reused for at most 60 seconds during a temporary outage. Low-liquidity, inactive, malformed, and older data are rejected.
 
 ## Secrets and managed services required
 

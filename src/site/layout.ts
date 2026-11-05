@@ -176,9 +176,6 @@ export interface PageOptions {
 export function renderPage(c: Context, opts: PageOptions): Response {
   const origin = config.publicDomain;
   const fullTitle = opts.path === "/" ? opts.title : `${opts.title} | Moltworld`;
-  const migrationNotice = config.paymentChain === "robinhood"
-    ? `<div class="wrap"><p class="note" role="status">${vercelPaymentPreviewDisabled() ? "Preview deployment: paid API and WIF checkout are disabled until the real database and provider credentials are configured." : "Robinhood Chain WIF checkout is active for chat requests. Legacy Algorand mandates, marketplace payouts, and automatic USDC refunds are disabled until their WIF equivalents are completed."}</p></div>`
-    : "";
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -214,7 +211,6 @@ export function renderPage(c: Context, opts: PageOptions): Response {
 <body data-origin="${origin}" data-explorer="${config.paymentChain === "robinhood" ? (config.isMainnet ? "https://robinhoodchain.blockscout.com" : "https://explorer.testnet.chain.robinhood.com") : config.isMainnet ? "https://lora.algokit.io/mainnet" : "https://lora.algokit.io/testnet"}" data-world-src="${asset("world.js")}" data-flow-src="${asset("flow.js")}" data-three-src="${asset("vendor/three.js")}" data-tgpu-src="${asset("vendor/typegpu.js")}" data-pay-src="${asset("vendor/pay.js")}">
   <a class="skip" href="#main">Skip to content</a>
   ${header(opts.path)}
-  ${migrationNotice}
   <main id="main">
 ${opts.body}
   </main>

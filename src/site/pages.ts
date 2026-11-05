@@ -226,6 +226,10 @@ curl -si ${origin}/v1/models/${model}/chat/completions \\
 function termDemo(models: CatalogEntry[]): string {
   const m = models.find((x) => x.slug === "gpt-4o") ?? models.find((x) => x.modality === "chat") ?? models[0];
   const slug = m?.slug ?? "gpt-4o";
+  if (config.paymentChain === "robinhood") return `<div class="term" aria-label="WIF chat payment flow">
+      <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="term-body"><span class="l t-cmd">POST /v1/models/${esc(slug)}/chat/completions</span><span class="l t-402">&larr; 402 Payment Required &middot; WIF amount quoted</span><span class="l t-cmd">retry with Payment-Signature</span><span class="l t-ok">chat response after successful request</span><span class="l t-ok">signed receipt</span></div>
+    </div>`;
   const price = m?.from ?? "$0.003";
   return `<div class="term" data-term>
       <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -294,6 +298,17 @@ function flowBand(): string {
     </div>`;
 }
 
+function robinhoodFlowBand(): string {
+  const left = Array.from({ length: 9 }, (_, i) => { const y = 30 + i * 42.5; return `<path class="in" d="M0 ${y} C 260 ${y}, 360 200, 500 200"/>`; }).join("");
+  const right = `<path class="out o2" d="M500 200 C 640 200, 700 200, 1000 200"/>`;
+  return `<div class="flow" data-reveal>
+      <svg class="flow-fallback" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">${left}${right}</svg>
+      <span class="flow-gate" aria-hidden="true"></span>
+      <span class="flow-label c" aria-hidden="true">x402</span>
+      <div class="flow-lanes" aria-hidden="true"><span style="top:50%">Chat<i style="background:var(--chat)"></i></span></div>
+    </div>`;
+}
+
 // ---------------------------------------------------------------------------
 // Home
 // ---------------------------------------------------------------------------
@@ -303,46 +318,40 @@ function home(c: Context) {
   if (config.paymentChain === "robinhood") {
     const chatModels = models.filter((model) => model.modality === "chat");
     const s = snippets();
-    const checkoutDisabled = vercelPaymentPreviewDisabled();
-    const availabilityNote = checkoutDisabled
-      ? '<p class="note" role="status">Preview status: live database/provider configuration is unavailable. No sample responses or payments are served.</p>'
-      : '<p class="note" role="status">Production status: real chat calls are supported. Other payment surfaces remain clearly marked below.</p>';
-    const status = checkoutDisabled ? "Preview only" : "Live chat path";
     const body = `
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <h1 data-split>Every AI chat model, <em>paid in WIF per request.</em></h1>
-            <div class="cta-row" data-reveal style="--d:4">${btn("/playground", checkoutDisabled ? "View WIF Playground" : "Open WIF Playground")}${btn("/models", "Chat models", "ghost")}</div>
+            <h1 data-split>Every AI model, <em>paid per request.</em></h1>
+            <div class="cta-row" data-reveal style="--d:4">${btn("/playground", "Open Playground")}<span class="cmd"><b>npm i moltworld-sdk</b><button type="button" class="icon-btn" data-copy="npm i moltworld-sdk" aria-label="Copy install command">${icon("copy", 15)}</button></span></div>
           </div>
-          <div class="hero-visual" data-clip><div class="card status-card"><span class="badge ${checkoutDisabled ? "bad" : "good"}">${status}</span><h3>Robinhood Chain + WIF</h3><p>Real chat calls only. Quotes, x402 authorization, response, and signed receipt.</p><p class="note">No simulated output or payment result is shown here.</p></div></div>
+          <div class="hero-visual" data-clip><div class="world-fallback">${WORLD_FALLBACK}</div><canvas id="world" role="img" aria-label="Globe of payments settling between agents and models. Drag to spin, tap to send a request."></canvas></div>
         </div>
       </section>
-      ${availabilityNote}
       ${logoBand(chatModels)}
       ${sec(`${secHead("AI is sold by the seat. <em>Agents don't have seats.</em>")}
-        <ul class="problems"><li data-reveal>Provider accounts make a wallet or API key the spending boundary.</li><li data-reveal style="--d:1">Prepaid credits hide the exact price of the request.</li><li data-reveal style="--d:2">A dashboard alone cannot prove what ran.</li></ul>
-        <p class="answer" data-reveal>Moltworld quotes each chat request with HTTP 402. <em>An EVM wallet authorizes the exact WIF amount.</em></p>`)}
-      ${sec(`${secHead("Four surfaces. <em>Two are live today.</em>", arrowLink("/products", "Product status"))}
+        <ul class="problems"><li data-reveal>Whoever holds a key spends the account.</li><li data-reveal style="--d:1">Credits and plans are prepaid to the provider.</li><li data-reveal style="--d:2">Dashboards can't prove what ran.</li></ul>
+        <p class="answer" data-reveal>Moltworld prices every request with HTTP 402. <em>Compatible wallets can pay in WIF on Robinhood Chain.</em></p>`)}
+      ${sec(`${secHead("Three products. <em>Proof on every call.</em>", arrowLink("/products", "All products"))}
         <div class="bento">
-          <a class="tile wide" href="/products/gateway" data-reveal><div class="tile-head"><h3>Chat gateway</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge good">Live</span><p>WIF x402 chat requests, exact quote-bound authorization, and signed receipts.</p></div></div></a>
-          <a class="tile narrow" href="/products/mandates" data-reveal style="--d:1"><div class="tile-head"><h3>Mandates</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge">Not active</span><p>Delegated spending is not supported on Robinhood production.</p></div></div></a>
-          <a class="tile narrow" href="/products/marketplace" data-reveal><div class="tile-head"><h3>Marketplace</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge">Not active</span><p>Listings and creator payouts are not supported on this rail.</p></div></div></a>
-          <a class="tile wide" href="/products/receipts" data-reveal style="--d:1"><div class="tile-head"><h3>Receipts</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge good">Live with chat</span><p>Receipt verification is available for completed real calls; no example hashes are displayed.</p></div></div></a>
+          <a class="tile wide" href="/products/gateway" data-reveal><div class="tile-head"><h3>Gateway</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual">${termDemo(chatModels)}</div></a>
+          <a class="tile narrow" href="/products/mandates" data-reveal style="--d:1"><div class="tile-head"><h3>Mandates</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge">Not active</span><p>Algorand mandates do not transfer to Robinhood Chain; no WIF mandate is enabled.</p></div></div></a>
+          <a class="tile narrow" href="/products/marketplace" data-reveal><div class="tile-head"><h3>Marketplace</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge">Not active</span><p>Creator listings and payouts are not enabled on this payment rail.</p></div></div></a>
+          <a class="tile wide" href="/products/receipts" data-reveal style="--d:1"><div class="tile-head"><h3>Receipts</h3><span class="go">${icon("arrow", 16)}</span></div><div class="tile-visual"><div class="card status-card"><span class="badge good">With chat</span><p>Verify a receipt from a completed WIF request. No sample transaction or hash is shown.</p></div></div></a>
         </div>`)}
       ${sec(`${secHead("Request to receipt <em>in one round trip.</em>")}
-        <div class="card status-card" data-reveal><p><strong>Example flow:</strong> quote → 402 WIF authorization → chat response → signed receipt.</p><p class="note">Diagram only; values come from the live request and are not fabricated here.</p></div>
-        ${stepsList(["Send a chat request and receive its exact quote.", "Authorize the exact WIF payment on Robinhood Chain; first use may require Permit2 approval and native ETH for gas.", "Receive the chat response; settlement completes only after a successful response.", "Keep or verify the signed receipt."])}`)}
-      ${sec(`${secHead("Chat models. <em>Priced per call.</em>", arrowLink("/models", "Browse catalog"))}<div class="mod-row"><a class="mod dot-chat" href="/models?type=chat" data-reveal><div class="k"><i></i>Chat</div><div class="lab-stack">${vendors(chatModels).slice(0, 4).map((v) => `<span title="${esc(vendorName(v))}">${logo(v)}</span>`).join("")}</div><div class="bars" aria-hidden="true">${[0, 1, 2, 3].map((j) => `<b style="--j:${j}"></b>`).join("")}</div></a></div>`)}
+        ${robinhoodFlowBand()}
+        ${stepsList(["Send a chat request and receive its exact quote.", "Authorize the quoted WIF payment on Robinhood Chain; first use can require Permit2 approval and native ETH for gas.", "The chat response is returned before settlement completes.", "Keep or verify the signed receipt."])}`)}
+      ${sec(`${secHead("Every chat model. <em>Priced per call.</em>", arrowLink("/models", "Chat models"))}<div class="mod-row"><a class="mod dot-chat" href="/models?type=chat" data-reveal><div class="k"><i></i>Chat</div><div class="lab-stack">${vendors(chatModels).slice(0, 4).map((v) => `<span title="${esc(vendorName(v))}">${logo(v)}</span>`).join("")}</div><div class="bars" aria-hidden="true">${[0, 1, 2, 3].map((j) => `<b style="--j:${j}"></b>`).join("")}</div></a></div>`)}
       <div class="rails-band">${modelRails(chatModels)}</div>
-      ${sec(`<div class="agent-grid"><div><h2 data-split>Built for software <em>that can authorize a chat call.</em></h2><ul class="feature-list" data-reveal><li>${icon("plug", 20)}<b>Remote MCP for discovery</b></li><li>${icon("wallet", 20)}<b>Local MCP with an agent key file</b></li><li>${icon("check", 20)}<b>Real chat response and signed receipt</b></li></ul><div class="cta-row" data-reveal>${btn("/solutions/agents", "Connect your agent")}${btn(`${docs()}/agents/mcp`, "MCP docs", "ghost")}</div></div><div class="chat" data-reveal><div class="chat-head">Production surface</div><div class="msg bot">Live chat calls only. Images, voice, video, mandates, and marketplace calls are not active on Robinhood production.</div><div class="tool"><span class="fn">moltworld_chat</span> → quote, authorize WIF, return response + receipt</div></div></div>`)}
+      ${sec(`<div class="agent-grid"><div><h2 data-split>Built for software <em>that spends money.</em></h2><ul class="feature-list" data-reveal><li>${icon("plug", 20)}<b>Remote and local MCP servers</b></li><li>${icon("package", 20)}<b>TypeScript and Python SDKs</b></li><li>${icon("check", 20)}<b>x402 quote, WIF payment, signed receipt</b></li></ul><div class="cta-row" data-reveal>${btn("/solutions/agents", "Connect your agent")}${btn(`${docs()}/agents/mcp`, "MCP docs", "ghost")}</div></div><div class="chat" data-reveal><div class="chat-head">HTTP 402 flow</div><div class="msg user">Chat request</div><div class="tool"><span class="fn">moltworld_quote</span> → exact USD quote and WIF amount</div><div class="tool">Wallet authorizes the exact payment on Robinhood Chain</div><div class="msg bot">A model response follows a successful request.</div></div></div>`)}
       ${sec(`<div class="dev-grid"><div><h2 data-split>One config for agents. <em>A few lines for apps.</em></h2><div class="sdk-list" data-reveal><a class="sdk" href="${docs()}/agents/mcp">${icon("plug", 20)}<b>MCP server</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/typescript">${icon("package", 20)}<b>TypeScript SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/python">${icon("package", 20)}<b>Python SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/api-reference/introduction">${icon("braces", 20)}<b>HTTP API / curl</b>${icon("arrow", 16)}</a></div></div><div data-reveal style="--d:2">${codeTabs("hero", [["mcp", "MCP", s.mcp, "json"], ["ts", "TypeScript", s.ts], ["py", "Python", s.py], ["curl", "curl", s.curl, "sh"]])}</div></div>`)}
-      ${sec(`${secHead("A wallet <em>instead of an account.</em>")}<div class="compare" data-reveal role="table" aria-label="Robinhood production status"><div class="compare-row head" role="row"><div role="columnheader"></div><div class="us" role="columnheader">Robinhood production</div><div role="columnheader">Status</div></div>${[["Payment", "WIF on Robinhood Chain", "Live for chat"], ["Model surface", "Chat catalog and chat endpoint", "Live"], ["MCP", "Remote discovery and local agent setup", "Example/configuration"], ["Mandates, marketplace, media", "Not shown as available", "Not active"], ["Automatic refunds or on-chain caps", "Not part of this production surface", "Not active"]].map(([k, us, them]) => `<div class="compare-row" role="row"><div role="rowheader">${k}</div><div class="us" role="cell">${icon("check", 16)}${us}</div><div role="cell">${them}</div></div>`).join("")}</div>`)}
-      ${sec(`${secHead("Live settlement data.", arrowLink("/stats", "Open dashboard"))}${statsWidget()}<p class="note" data-reveal>Stats are loaded from the gateway ledger. USD figures are quote-time estimates, not mark-to-market WIF totals.</p>`)}
-      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<div class="rail" data-reveal><div class="card status-card"><span class="badge good">Chat</span><p>Agents can connect through MCP and authorize real chat calls with an EVM wallet.</p></div><div class="card status-card"><span class="badge">Scope</span><p>Media, mandates, marketplace, automatic refunds, and on-chain spending caps are not active here.</p></div></div>`)}
+      ${sec(`${secHead("A wallet <em>instead of an account.</em>")}<div class="compare" data-reveal role="table" aria-label="Moltworld on Robinhood Chain compared with API keys and plans"><div class="compare-row head" role="row"><div role="columnheader"></div><div class="us" role="columnheader">Moltworld on Robinhood</div><div role="columnheader">API keys and plans</div></div>${[["Sign-up", "No account; connect an EVM wallet", "An account per provider"], ["Your money", "In your wallet until a WIF request settles", "Prepaid to the provider, or billed later"], ["Per-call spend", "Exact quote and WIF amount", "Provider-side limits"], ["A leaked credential", "A payment still needs wallet authorization", "May spend up to the key's limit"], ["Failed chat request", "Payment is not settled before a response", "Depends on the provider"], ["Proof of each call", "Signed receipt and on-chain settlement", "Usage logs"], ["Mandates and marketplace", "Not enabled on this payment rail", "Build billing yourself"]].map(([k, us, them]) => `<div class="compare-row" role="row"><div role="rowheader">${k}</div><div class="us" role="cell">${icon("check", 16)}${us}</div><div role="cell">${them}</div></div>`).join("")}</div>`)}
+      ${sec(`${secHead("Every payment <em>has on-chain proof.</em>", arrowLink("/stats", "Live network"))}${statsWidget()}<p class="note" data-reveal>Stats are loaded from the gateway ledger. USD figures are quote-time estimates, not mark-to-market WIF totals.</p>`)}
+      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<div class="rail" data-reveal><div class="card status-card"><span class="badge good">Chat</span><p>Chat-capable agents can use MCP or an SDK and authorize a real WIF request.</p></div><div class="card status-card"><span class="badge">Other surfaces</span><p>Image, voice, mandates, marketplace, and automatic refunds are not enabled on this rail.</p></div></div>`)}
       ${sec(robinhoodFaq())}
-      ${ctaFinal(checkoutDisabled ? "WIF chat checkout is <em>not active in this preview.</em>" : "Connect a wallet. <em>Pay for a real chat call.</em>", btn("/playground", checkoutDisabled ? "View Playground" : "Open Playground"))}`;
-    return renderPage(c, { path: "/", title: "Moltworld | WIF chat on Robinhood Chain", description: "Moltworld's Robinhood Chain production surface supports real chat calls paid per request in WIF, with exact quotes and signed receipts.", body, data: catalogScript(chatModels) });
+      ${ctaFinal("Stop managing keys. <em>Pay per call.</em>")}`;
+    return renderPage(c, { path: "/", title: "Moltworld | Every AI chat model, paid per request", description: "The pay-per-request chat gateway for AI. Eligible chat models are paid in WIF on Robinhood Chain through x402, with exact quotes and signed receipts.", body, data: catalogScript(chatModels) });
   }
   const s = snippets();
   const body = `
@@ -489,7 +498,7 @@ function home(c: Context) {
 function robinhoodFaq(): string {
   const qa: Array<[string, string]> = [
     ["What is live on Robinhood production?", "Real chat calls paid in WIF on Robinhood Chain, with an exact quote, x402 authorization, and a signed receipt when the call completes."],
-    ["Which clients can connect?", "An EVM wallet in the Playground, the TypeScript or assumed Python client shape shown in the examples, curl for the HTTP surface, or a local MCP server configured with its own key file."],
+    ["Which clients can connect?", "An EVM wallet in the Playground, the TypeScript or Python SDK, remote MCP for discovery, or a local MCP server configured with its own EVM key file. curl can request a free quote or unpaid 402 terms; it does not sign a payment."],
     ["Are media, mandates, or marketplace calls available?", "No. Robinhood production is limited to chat calls. Image, voice, video, mandates, marketplace payouts, automatic refunds, and on-chain spending caps are not active surfaces here."],
     ["Where do WIF amounts come from?", "The gateway returns a quote-bound WIF amount in the 402 payment requirements using the live price snapshot. The displayed USD value is a quote, not a mark-to-market balance."],
     ["Can I see example receipts or hashes?", "No fabricated transaction values or hashes are displayed. Verify a receipt from a completed real request in the Playground."],
