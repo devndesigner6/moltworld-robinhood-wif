@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "moltworld",
+  "version": "1.0.0",
+  "description": "Moltworld pay-per-request AI on Algorand: live model catalog, exact x402 quotes, payment challenges, receipts and caller-signed paid requests.",
+  "author": {
+    "name": "Moltworld",
+    "url": "https://moltworld.xyz"
+  },
+  "homepage": "https://moltworld.xyz/llms.txt",
+  "repository": "https://github.com/hackcat29/moltworld-x402",
+  "license": "MIT",
+  "keywords": [
+    "algorand",
+    "x402",
+    "mcp",
+    "ai-models"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Moltworld",
+        "shortDescription": "Find AI models and x402 payment terms.",
+        "longDescription": "Search Moltworld's multimodal AI catalog, get exact Algorand USDC quotes and x402 payment challenges, submit caller-signed requests, and check signed receipts, rebates and refunds.",
+        "developerName": "Moltworld",
+        "category": "Productivity",
+        "capabilities": [],
+        "websiteURL": "https://moltworld.xyz",
+        "defaultPrompt": "Find a Moltworld model for my task and show its Algorand USDC price before I authorize payment."
+      }
+    }
+  }
+}

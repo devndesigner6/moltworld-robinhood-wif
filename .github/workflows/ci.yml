@@ -1,0 +1,145 @@
+name: Moltworld CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Typecheck, unit, e2e and interop tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: moltworld
+          POSTGRES_PASSWORD: moltworld
+          POSTGRES_DB: moltworld_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U moltworld" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install py-algorand-sdk pynacl
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck gateway and SDK
+        run: pnpm build
+      - name: Unit, e2e and interop tests (PGlite)
+        run: pnpm test
+      - name: Payment e2e tests on PostgreSQL 16
+        env:
+          DATABASE_URL: postgres://moltworld:moltworld@127.0.0.1:5432/moltworld_test
+        run: pnpm vitest run tests/payments.e2e.test.ts --no-file-parallelism
+
+  ui:
+    name: UI tests (desktop, tablet, phones; light and dark)
+    # Playwright 1.56 has no Chromium build for ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium for Playwright
+        run: npx -y playwright@1.56.1 install --with-deps chromium
+      - name: Run UI suite
+        run: pnpm test:ui
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: ui-artifacts/
+          retention-days: 14
+
+  deploy:
+    name: Deploy origin (VPS)
+    needs: [test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USER }}
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          port: ${{ secrets.CONTABO_PORT }}
+          script_stop: true
+          script: |
+            set -ex
+            cd /opt/moltworld
+            echo "==> Fetching latest commit..."
+            git fetch origin main
+            git reset --hard origin/main
+            echo "==> Provisioning environment and native datastores..."
+            bash deploy/contabo-setup.sh
+
+  edge:
+    name: Cloudflare Worker (pass-through)
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy pass-through Worker
+        run: pnpm wrangler deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  verify:
+    name: Verify public endpoint
+    needs: [edge]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health, catalog, 402 challenge, receipt keys, A2A and MCP
+        run: |
+          set -e
+          base=https://moltworld.xyz
+          for i in $(seq 1 12); do
+            health=$(curl -fsS $base/health || true)
+            if echo "$health" | grep -q '"version":"3.0.0"' && echo "$health" | grep -q '"ready":true'; then break; fi
+            echo "waiting for $base ($i/12)"; sleep 10
+          done
+          echo "$health" | jq '{status, network, ledger, enabled_models, receipts, payouts_enabled}'
+          echo "$health" | jq -e '.ready and .ledger == "postgres" and .receipts.persistent_key and (.mock_providers | not)'
+          curl -fsS $base/v1/models | jq -e '.data | length > 0'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -D headers.txt $base/v1/models/gpt/chat/completions \
+            -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hi"}],"max_tokens":50}')
+          test "$code" = 402 && grep -qi '^payment-required:' headers.txt
+          curl -fsS $base/.well-known/moltworld-receipts.json | jq -e '.keys | length > 0'
+          curl -fsS $base/a2a -H 'Content-Type: application/json' -H 'A2A-Version: 1.0' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"message":{"messageId":"ci","role":"ROLE_USER","parts":[{"text":"list image models","mediaType":"text/plain"}]}}}' \
+            | jq -e '.result.message.parts[0].text | length > 0'
+          curl -fsS $base/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -q quote_request

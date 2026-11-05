@@ -1,0 +1,87 @@
+---
+title: "TypeScript"
+description: "moltworld-sdk for Node.js 20 and later."
+---
+
+```bash
+npm install moltworld-sdk
+```
+
+The client pays 402 challenges for you, enforces your spend limits before signing, and verifies each receipt.
+
+## Create a client
+
+```ts
+import { MoltworldClient } from "moltworld-sdk";
+
+const client = new MoltworldClient({
+  mnemonic: process.env.WALLET_MNEMONIC, // or signer, privateKeyBase64, mandate
+  maxPerRequestUsd: 0.25,
+  budgetUsd: 5,
+});
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `signer` | | Any x402 AVM signer, such as a wallet adapter |
+| `mnemonic` | | 25-word Algorand mnemonic |
+| `privateKeyBase64` | | 64-byte secret key, base64 |
+| `mandate` | | Mandate credential. See [Spending mandates](/products/mandates) |
+| `agentKey` | | The agent's own key (base64 secret) that the mandate is bound to |
+| `maxPerRequestUsd` | `1` | Refuse any single payment above this |
+| `budgetUsd` | none | Refuse payments that would take this client's total above this |
+| `expectedPayTo` | from `/health` | Refuse to pay any other address |
+| `baseUrl` | `https://moltworld.xyz` | Gateway address |
+| `algodUrl` | public node | Algod used to build transactions |
+
+Give exactly one of `signer`, `mnemonic`, `privateKeyBase64` or `mandate`.
+
+## Calls
+
+```ts
+await client.chat("gpt-4o", { messages: [{ role: "user", content: "Hi" }], max_tokens: 200 });
+await client.image("gpt-image-1.5", { prompt: "a lighthouse at dusk", size: "1024x1024" });
+await client.speech("tts-1", { input: "Hello there", voice: "alloy" });
+await client.market("weather-now", { lat: 52.37, lon: 4.9 });
+await client.call("/v1/models/gpt-4o/chat/completions", body); // any paid path
+```
+
+Each returns a `PaidResult`:
+
+| Field | Meaning |
+| --- | --- |
+| `data` | Parsed response body |
+| `requestId` | Request id |
+| `receipt` | Decoded receipt |
+| `verification` | `{ signatureValid, requestMatches, responseMatches, ok }` |
+| `paidMicro` | Amount paid, in micro-USDC |
+| `replayed` | `true` when the response was a replay of an earlier payment |
+
+## Free calls
+
+```ts
+await client.models("image");               // catalog
+await client.quote("gpt-4o", body);         // { microUsdc, formattedPrice, units }
+await client.job(jobId);                    // video job status
+await client.receipt(requestId);            // receipt and settlement status
+client.spentUsd;                            // spend so far
+client.address;                             // paying address
+```
+
+## Mandates
+
+```ts
+import { generateAgentKey, createMandate, revokeMandate, verifyDraft, createMandateSigner } from "moltworld-sdk";
+```
+
+See [Spending mandates](/products/mandates).
+
+## Receipts
+
+```ts
+import { decodeReceiptHeader, checkReceipt, canonicalJson } from "moltworld-sdk";
+```
+
+## Errors
+
+Failed calls throw `MoltworldError` with `status`, `code` and `body`. See [Handle errors](/guides/handle-errors).

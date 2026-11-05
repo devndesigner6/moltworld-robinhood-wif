@@ -1,0 +1,31 @@
+---
+title: "Claude Code"
+description: "Add Moltworld to Claude Code."
+---
+<Note>
+Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
+</Note>
+
+
+## Catalog and quotes
+
+```bash
+claude mcp add --transport http moltworld https://moltworld.xyz/mcp
+```
+
+## Paid calls with a mandate
+
+```bash
+claude mcp add -e MOLTWORLD_MANDATE=<credential> -e MOLTWORLD_BUDGET_USD=5 \
+  moltworld-wallet -- npx -y -p moltworld-sdk moltworld-mcp
+```
+
+Run `/mcp` inside Claude Code to check that both servers are connected.
+
+## Plugin
+
+The repository also has a Claude Code plugin in [`plugins/moltworld`](https://github.com/hackcat29/moltworld-x402/tree/main/plugins/moltworld) that sets up the remote server.
+
+## Try it
+
+> Generate a product image of a ceramic mug with gpt-image-1.5 and save it to ./assets.

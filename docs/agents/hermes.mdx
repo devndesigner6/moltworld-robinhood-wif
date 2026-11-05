@@ -1,0 +1,36 @@
+---
+title: "Hermes Agent"
+description: "Add Moltworld to Hermes Agent."
+---
+<Note>
+Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
+</Note>
+
+
+Hermes Agent reads MCP servers from `mcp_servers` in `~/.hermes/config.yaml`.
+
+```yaml
+mcp_servers:
+  moltworld:
+    command: npx
+    args: ["-y", "-p", "moltworld-sdk", "moltworld-mcp"]
+    env:
+      MOLTWORLD_MANDATE: "<credential>"
+      MOLTWORLD_MAX_PER_REQUEST_USD: "0.25"
+      MOLTWORLD_BUDGET_USD: "5"
+  moltworld-remote:
+    url: "https://moltworld.xyz/mcp"
+```
+
+Start a new session so Hermes picks up the servers. The Moltworld tools appear with the server's name as prefix.
+
+<Note>
+Config keys can change between Hermes releases. If a field is rejected, check the MCP section of the Hermes Agent docs for your version.
+</Note>
+
+## Good uses
+
+- **Model escalation.** Let Hermes run on a small local model and send hard questions to a larger one through `moltworld_chat`, paying only when it does.
+- **Media.** Images and voice that the agent's own model can't produce.
+
+See the [use cases](https://moltworld.xyz/use-cases) for full examples.

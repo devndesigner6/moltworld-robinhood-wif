@@ -1,0 +1,2130 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Moltworld API",
+    "version": "3.0.0",
+    "description": "AI models for apps and agents, paid per request in USDC on Algorand through x402.\n\nPaid endpoints return HTTP 402 with a `Payment-Required` header until the request carries a valid `Payment-Signature` header from an x402 client."
+  },
+  "servers": [
+    {
+      "url": "https://moltworld.xyz",
+      "description": "Production"
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "Models"
+    },
+    {
+      "name": "Pricing"
+    },
+    {
+      "name": "Jobs and receipts"
+    },
+    {
+      "name": "Mandates"
+    },
+    {
+      "name": "Marketplace"
+    },
+    {
+      "name": "Service"
+    }
+  ],
+  "paths": {
+    "/v1/models/{model}/chat/completions": {
+      "post": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Chat completion",
+        "description": "OpenAI-style chat. Priced from input size and `max_tokens`; charged after the answer is ready. Unused budget is paid back as a rebate.",
+        "security": [
+          {
+            "x402": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Model slug from `GET /v1/models`, for example `gpt-4o`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "headers": {
+              "Moltworld-Receipt": {
+                "description": "Signed receipt, base64url-encoded JSON. See Receipts.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Moltworld-Request-Id": {
+                "description": "Request id, used to look up the receipt.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Response": {
+                "description": "x402 settlement result (base64 JSON with the transaction id).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/images/generations": {
+      "post": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Generate images",
+        "description": "Priced per image. Charged before generation and refunded on-chain if the provider fails.",
+        "security": [
+          {
+            "x402": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Model slug from `GET /v1/models`, for example `gpt-4o`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            },
+            "headers": {
+              "Moltworld-Receipt": {
+                "description": "Signed receipt, base64url-encoded JSON. See Receipts.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Moltworld-Request-Id": {
+                "description": "Request id, used to look up the receipt.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Response": {
+                "description": "x402 settlement result (base64 JSON with the transaction id).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/audio/speech": {
+      "post": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Text to speech",
+        "description": "Priced per character. Charged before generation and refunded on-chain if the provider fails.",
+        "security": [
+          {
+            "x402": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Model slug from `GET /v1/models`, for example `gpt-4o`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechResponse"
+                }
+              }
+            },
+            "headers": {
+              "Moltworld-Receipt": {
+                "description": "Signed receipt, base64url-encoded JSON. See Receipts.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Moltworld-Request-Id": {
+                "description": "Request id, used to look up the receipt.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Response": {
+                "description": "x402 settlement result (base64 JSON with the transaction id).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/market/{slug}/call": {
+      "post": {
+        "tags": [
+          "Marketplace"
+        ],
+        "summary": "Call a listing",
+        "description": "Calls a creator's API. Priced by the listing; charged after the creator's API returns 2xx. The response body is the creator's response.",
+        "security": [
+          {
+            "x402": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The creator's JSON (or plain text) response.",
+            "headers": {
+              "Moltworld-Receipt": {
+                "description": "Signed receipt, base64url-encoded JSON. See Receipts.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Moltworld-Request-Id": {
+                "description": "Request id, used to look up the receipt.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Response": {
+                "description": "x402 settlement result (base64 JSON with the transaction id).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    },
+    "/v1/quote": {
+      "post": {
+        "tags": [
+          "Pricing"
+        ],
+        "summary": "Get a quote",
+        "description": "Exact price for a request body, without paying. The amount equals the one in the 402 challenge for the same body.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "model"
+                    ]
+                  },
+                  {
+                    "description": "Plus the request body for that model's endpoint."
+                  }
+                ]
+              },
+              "example": {
+                "model": "gpt-4o",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello"
+                  }
+                ],
+                "max_tokens": 200
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "Pricing"
+        ],
+        "summary": "List models",
+        "parameters": [
+          {
+            "name": "modality",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "chat",
+                "image",
+                "voice",
+                "video"
+              ]
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unavailable"
+              ]
+            },
+            "description": "Also list models that are withheld, with the reason."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Model"
+                      }
+                    },
+                    "unavailable": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Jobs and receipts"
+        ],
+        "summary": "Get a video job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/receipts/{id}": {
+      "get": {
+        "tags": [
+          "Jobs and receipts"
+        ],
+        "summary": "Get a receipt",
+        "description": "Receipt, settlement, rebate and refund status for a request id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Request id from `Moltworld-Request-Id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptLookup"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/.well-known/moltworld-receipts.json": {
+      "get": {
+        "tags": [
+          "Jobs and receipts"
+        ],
+        "summary": "Receipt signing keys",
+        "responses": {
+          "200": {
+            "description": "Keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptKeys"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/mandates/draft": {
+      "post": {
+        "tags": [
+          "Mandates"
+        ],
+        "summary": "Draft a mandate",
+        "description": "Builds the mandate program for an owner. Nothing is stored.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MandateDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MandateDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/mandates": {
+      "post": {
+        "tags": [
+          "Mandates"
+        ],
+        "summary": "Register a mandate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MandateRegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "A signature does not match the owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Mandates"
+        ],
+        "summary": "List an owner's mandates",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mandates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Mandate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/mandates/{id}": {
+      "get": {
+        "tags": [
+          "Mandates"
+        ],
+        "summary": "Get a mandate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mandate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/mandates/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Mandates"
+        ],
+        "summary": "Revoke a mandate",
+        "description": "Final. Payments under the mandate are refused afterwards.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Signature does not match the owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/market": {
+      "get": {
+        "tags": [
+          "Marketplace"
+        ],
+        "summary": "List live listings",
+        "responses": {
+          "200": {
+            "description": "Listings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Listing"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/listings": {
+      "post": {
+        "tags": [
+          "Marketplace"
+        ],
+        "summary": "Create a listing",
+        "description": "Signed by the creator's wallet. Listings are reviewed before they go live.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Signature does not match the creator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug already taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/market/creators/{address}/earnings": {
+      "get": {
+        "tags": [
+          "Marketplace"
+        ],
+        "summary": "Creator earnings",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Earnings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Earnings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Health",
+        "responses": {
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Usage",
+        "responses": {
+          "200": {
+            "description": "Usage from the ledger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Payment-Signature",
+        "description": "x402 payment payload (base64 JSON) signed by the payer's Algorand wallet for the amount in the 402 challenge. Use an x402 client or the Moltworld SDKs; you don't construct it by hand."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "validation_error"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ChatMessage": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ]
+      },
+      "ChatRequest": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Output budget. Defaults to 1024 (or the model limit if lower). You're charged for this budget and the unused part is paid back as a rebate."
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      },
+      "Meta": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "price_micro_usdc": {
+            "type": "integer"
+          },
+          "receipt_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "message": {
+                  "$ref": "#/components/schemas/ChatMessage"
+                },
+                "finish_reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "moltworld": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "ImageRequest": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Images to generate. Most models allow 1; some allow up to 4 (see the model's limits)."
+          },
+          "size": {
+            "type": "string",
+            "example": "1024x1024",
+            "description": "One of the model's `sizes`."
+          }
+        },
+        "required": [
+          "prompt"
+        ]
+      },
+      "ImageResponse": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "b64_json": {
+                  "type": "string"
+                },
+                "revised_prompt": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "moltworld": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "SpeechRequest": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Text to speak."
+          },
+          "voice": {
+            "type": "string",
+            "description": "One of the model's `voices`, or an ElevenLabs voice id."
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "mp3",
+              "wav",
+              "opus",
+              "aac",
+              "flac"
+            ],
+            "description": "One of the model's `audio_formats`."
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "SpeechResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "audio.speech"
+          },
+          "model": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "audio_b64": {
+            "type": "string",
+            "description": "Base64 audio."
+          },
+          "character_count": {
+            "type": "integer"
+          },
+          "moltworld": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "VideoRequest": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Seconds; one of the model's `durations`."
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "One of the model's `aspect_ratios`."
+          }
+        },
+        "required": [
+          "prompt"
+        ]
+      },
+      "VideoJobAccepted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "job_x1y2z3"
+          },
+          "object": {
+            "type": "string",
+            "const": "video.job"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued"
+          },
+          "model": {
+            "type": "string"
+          },
+          "poll_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "refund_policy": {
+            "type": "string"
+          },
+          "moltworld": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "modelSlug": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string"
+          },
+          "units": {
+            "type": "object",
+            "properties": {
+              "estimatedInputTokens": {
+                "type": "integer"
+              },
+              "maxOutputTokens": {
+                "type": "integer"
+              },
+              "images": {
+                "type": "integer"
+              },
+              "characters": {
+                "type": "integer"
+              },
+              "seconds": {
+                "type": "integer"
+              }
+            }
+          },
+          "upstreamCostUsd": {
+            "type": "number"
+          },
+          "marginPercent": {
+            "type": "integer"
+          },
+          "finalPriceUsd": {
+            "type": "number"
+          },
+          "formattedPrice": {
+            "type": "string",
+            "example": "$0.005249"
+          },
+          "microUsdc": {
+            "type": "integer",
+            "example": 5249
+          },
+          "costSource": {
+            "type": "string",
+            "enum": [
+              "static",
+              "openrouter-live",
+              "fal-live",
+              "env-override"
+            ]
+          }
+        }
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "payment_flow": {
+            "type": "string",
+            "enum": [
+              "authorization",
+              "upfront"
+            ]
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "image",
+              "voice",
+              "video"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "upstream_model": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "from_price": {
+            "type": "string"
+          },
+          "payment_flow": {
+            "type": "string"
+          },
+          "limits": {
+            "type": "object"
+          },
+          "sizes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "durations": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "aspect_ratios": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "voices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audio_formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "video.job"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "video_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "receipt_url": {
+            "type": "string"
+          },
+          "refund": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "txid": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "amount": {
+                "type": "string"
+              }
+            }
+          },
+          "paid": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "description": "Signed with Ed25519 over the canonical JSON (keys sorted, no whitespace) of every field except `sig`.",
+        "properties": {
+          "v": {
+            "type": "integer",
+            "const": 1
+          },
+          "kid": {
+            "type": "string"
+          },
+          "iss": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "payer": {
+            "type": "string"
+          },
+          "payTo": {
+            "type": "string"
+          },
+          "amountMicro": {
+            "type": "integer"
+          },
+          "txid": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upstreamProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upstreamModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requestSha256": {
+            "type": "string"
+          },
+          "responseSha256": {
+            "type": "string"
+          },
+          "rebateMicro": {
+            "type": "integer"
+          },
+          "issuedAt": {
+            "type": "integer"
+          },
+          "sig": {
+            "type": "string",
+            "description": "base64url Ed25519 signature"
+          }
+        }
+      },
+      "ReceiptLookup": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "settled",
+              "completed",
+              "failed",
+              "settle_failed",
+              "refund_pending",
+              "refunded"
+            ]
+          },
+          "receipt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Receipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signature_valid": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "rebate": {
+            "type": "string"
+          },
+          "txid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "job": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "refund": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReceiptKeys": {
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": "string"
+          },
+          "algorithm": {
+            "type": "string",
+            "const": "Ed25519"
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kid": {
+                  "type": "string"
+                },
+                "alg": {
+                  "type": "string"
+                },
+                "publicKey": {
+                  "type": "string",
+                  "description": "Raw 32-byte key, base64"
+                },
+                "current": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "pay_to": {
+            "type": "string"
+          }
+        }
+      },
+      "Mandate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The program's Algorand address."
+          },
+          "owner": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ]
+          },
+          "max_per_call": {
+            "type": "string"
+          },
+          "daily_cap": {
+            "type": "string"
+          },
+          "spent_24h": {
+            "type": "string"
+          },
+          "remaining_24h": {
+            "type": "string"
+          },
+          "allowed_models": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiry_round": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "MandateDraftRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "max_per_call_usd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          },
+          "daily_cap_usd": {
+            "type": "number",
+            "maximum": 10000
+          },
+          "valid_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 30
+          },
+          "allowed_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "max_per_call_usd",
+          "daily_cap_usd"
+        ]
+      },
+      "MandateDraft": {
+        "type": "object",
+        "properties": {
+          "mandate_id": {
+            "type": "string"
+          },
+          "program_b64": {
+            "type": "string"
+          },
+          "teal": {
+            "type": "string"
+          },
+          "terms": {
+            "type": "object",
+            "properties": {
+              "pay_to": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "integer"
+              },
+              "max_per_call_micro": {
+                "type": "integer"
+              },
+              "expiry_round": {
+                "type": "integer"
+              },
+              "current_round": {
+                "type": "integer"
+              }
+            }
+          },
+          "registration": {
+            "type": "object",
+            "description": "Add `issued_at` and sign this object to register."
+          },
+          "next_steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MandateRegisterRequest": {
+        "type": "object",
+        "properties": {
+          "program_b64": {
+            "type": "string"
+          },
+          "delegation_sig": {
+            "type": "string",
+            "description": "Owner's LogicSig delegation signature (base64)."
+          },
+          "registration": {
+            "type": "object",
+            "description": "The draft's `registration` plus `issued_at` (unix seconds)."
+          },
+          "owner_sig": {
+            "type": "string",
+            "description": "algosdk.signBytes over the canonical JSON of `registration`, base64."
+          }
+        },
+        "required": [
+          "program_b64",
+          "delegation_sig",
+          "registration",
+          "owner_sig"
+        ]
+      },
+      "RevokeRequest": {
+        "type": "object",
+        "properties": {
+          "issued_at": {
+            "type": "integer"
+          },
+          "owner_sig": {
+            "type": "string",
+            "description": "Signature over {action:'revoke', mandate_id, issued_at}."
+          }
+        },
+        "required": [
+          "issued_at",
+          "owner_sig"
+        ]
+      },
+      "Listing": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "creator": {
+            "type": "string"
+          },
+          "price": {
+            "type": "string"
+          },
+          "price_micro_usdc": {
+            "type": "integer"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "input_example": {},
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "suspended"
+            ]
+          },
+          "creator_share_percent": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ListingRequest": {
+        "type": "object",
+        "properties": {
+          "listing": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "list"
+              },
+              "creator": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{2,47}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "upstream_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "price_usd": {
+                "type": "number"
+              },
+              "input_example": {},
+              "issued_at": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "action",
+              "creator",
+              "slug",
+              "name",
+              "description",
+              "upstream_url",
+              "price_usd",
+              "issued_at"
+            ]
+          },
+          "creator_sig": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "listing",
+          "creator_sig"
+        ]
+      },
+      "ListingCreated": {
+        "type": "object",
+        "properties": {
+          "listing": {
+            "$ref": "#/components/schemas/Listing"
+          },
+          "signing_secret": {
+            "type": "string",
+            "description": "Shown once. Use it to verify forwarded calls."
+          },
+          "verification": {
+            "type": "string"
+          },
+          "review": {
+            "type": "string"
+          }
+        }
+      },
+      "Earnings": {
+        "type": "object",
+        "properties": {
+          "creator": {
+            "type": "string"
+          },
+          "paid_calls": {
+            "type": "integer"
+          },
+          "unpaid": {
+            "type": "string"
+          },
+          "paid_out": {
+            "type": "string"
+          },
+          "payout_threshold": {
+            "type": "string"
+          },
+          "payouts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "network_caip2": {
+            "type": "string"
+          },
+          "usdc_asset_id": {
+            "type": "string"
+          },
+          "pay_to": {
+            "type": "string"
+          },
+          "facilitator": {
+            "type": "string"
+          },
+          "ledger": {
+            "type": "string"
+          },
+          "enabled_models": {
+            "type": "integer"
+          },
+          "receipts": {
+            "type": "object"
+          },
+          "payouts_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "network": {
+            "type": "string"
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "facilitator": {
+            "type": "object",
+            "nullable": true,
+            "description": "The x402 facilitator's record for this merchant on this network: volume, settles, success rate, payers, first and last settlement, network mix (networks), every settled endpoint (endpoints), and listing status. Null when the facilitator is unreachable and nothing is cached."
+          },
+          "recent_settlements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "methodology": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request body. Nothing was charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Unknown model, listing, job or receipt.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests from this IP. See `Retry-After`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UpstreamError": {
+        "description": "The model provider failed. Chat is not charged; image, voice and video are refunded on-chain.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "The model or payment verification is unavailable. Nothing was charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "Payment required. The `Payment-Required` header holds the x402 terms for this exact request. If you sent a payment that was refused, the body explains why.",
+        "headers": {
+          "Payment-Required": {
+            "description": "Base64 JSON: `{ x402Version, accepts: [{ scheme, network, amount, asset, payTo, extra }] }`",
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

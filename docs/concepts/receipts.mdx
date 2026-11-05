@@ -1,0 +1,41 @@
+---
+title: "Receipts"
+description: "Signed proof of what you paid for and what you got back."
+---
+
+Every paid response carries a `Moltworld-Receipt` header. It is base64url-encoded JSON, signed by Moltworld with Ed25519.
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| `v` | Receipt format version, currently `1` |
+| `kid` | Id of the signing key |
+| `iss` | Issuer, the gateway's origin |
+| `id` | Request id |
+| `network`, `asset` | Algorand network and USDC asset id |
+| `payer`, `payTo` | Paying wallet and Moltworld's address |
+| `amountMicro` | Amount paid, in micro-USDC |
+| `txid` | Algorand transaction id of the settlement |
+| `resource` | Endpoint that was called |
+| `model` | Moltworld model id |
+| `upstreamProvider`, `upstreamModel` | Provider and model that actually served the request |
+| `requestSha256` | SHA-256 of the request body bytes you sent |
+| `responseSha256` | SHA-256 of the response body bytes you received |
+| `rebateMicro` | Chat budget paid back |
+| `issuedAt` | Unix seconds |
+| `sig` | Ed25519 signature, base64url |
+
+## What a receipt proves
+
+- Moltworld accepted this payment for this request. The signature covers every other field.
+- The response you hold is the one Moltworld sent. Its hash matches `responseSha256`.
+- The upstream model is named. If a request was served by a different model than the one you asked for, the receipt shows it.
+
+The `txid` can be checked on any Algorand explorer.
+
+## Signing keys
+
+Public keys are at [`/.well-known/moltworld-receipts.json`](https://moltworld.xyz/.well-known/moltworld-receipts.json). Old keys stay listed after rotation so old receipts still verify.
+
+To verify one yourself, see [Verify receipts](/guides/verify-receipts). Both SDKs do it on every paid call.

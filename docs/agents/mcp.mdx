@@ -1,0 +1,69 @@
+---
+title: "MCP"
+description: "Two MCP servers: a remote one for discovery and a local one that pays."
+---
+
+Moltworld works with any agent that speaks the [Model Context Protocol](https://modelcontextprotocol.io).
+
+| | Remote server | Local server |
+| --- | --- | --- |
+| Address | `https://moltworld.xyz/mcp` (streamable HTTP) | `moltworld-mcp` from `moltworld-sdk` (stdio) |
+| Holds a wallet | No | A mandate credential and the agent's own key, or a dedicated wallet |
+| The agent can | List models, get quotes and 402 terms, send requests you signed | Pay for and run chat, image, voice and video calls |
+| Best for | Discovery, or a person approving each payment | Agents that run on their own |
+
+## Local server
+
+```bash
+npx -y -p moltworld-sdk moltworld-mcp
+```
+
+Configure it with environment variables:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MOLTWORLD_MANDATE` | | Base64 JSON mandate credential. Recommended. See [Spending mandates](/products/mandates) |
+| `MOLTWORLD_AGENT_KEY_FILE` | `~/.moltworld/agent.key` | The agent's own key, created with `moltworld-mcp keygen`. Mandates are bound to it |
+| `MOLTWORLD_MNEMONIC` | | Or a 25-word mnemonic for a dedicated low-balance wallet |
+| `MOLTWORLD_MAX_PER_REQUEST_USD` | `0.50` | Refuse any single payment above this |
+| `MOLTWORLD_BUDGET_USD` | `5` | Total spend for one server session |
+| `MOLTWORLD_URL` | `https://moltworld.xyz` | Gateway address |
+
+### Tools
+
+| Tool | What it does |
+| --- | --- |
+| `moltworld_models` | List models and their from-prices, optionally by modality |
+| `moltworld_quote` | Exact price of a request, without paying |
+| `moltworld_chat` | Paid chat completion. Unused tokens are paid back |
+| `moltworld_image` | Paid image generation, refunded if it fails |
+| `moltworld_speech` | Paid text to speech |
+| `moltworld_spend` | Wallet address, spend so far and budget |
+
+## Remote server
+
+```json
+{ "mcpServers": { "moltworld": { "type": "http", "url": "https://moltworld.xyz/mcp" } } }
+```
+
+### Tools
+
+| Tool | What it does |
+| --- | --- |
+| `list_models` | Live catalog, optionally by modality |
+| `quote_request` | Exact price of a body |
+| `get_payment_requirements` | The 402 terms for a body, ready to sign |
+| `submit_signed_request` | Send a body with a `Payment-Signature` you produced |
+| `get_job` | Video job status |
+| `get_receipt` | Receipt and settlement status |
+
+The remote server never signs anything. Payment comes from the caller, which makes it a good fit when a person or a separate wallet service approves each payment.
+
+## Framework guides
+
+<CardGroup cols={2}>
+  <Card title="OpenClaw" href="/agents/openclaw" />
+  <Card title="Hermes Agent" href="/agents/hermes" />
+  <Card title="Claude Code" href="/agents/claude-code" />
+  <Card title="A2A" href="/agents/a2a" />
+</CardGroup>

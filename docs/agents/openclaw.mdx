@@ -1,0 +1,51 @@
+---
+title: "OpenClaw"
+description: "Add Moltworld to an OpenClaw agent."
+---
+<Note>
+Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
+</Note>
+
+
+OpenClaw loads MCP servers from the `mcp.servers` section of its gateway config. Add the local server to let the agent pay within a mandate, and the remote server for the catalog.
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "moltworld": {
+        "command": "npx",
+        "args": ["-y", "-p", "moltworld-sdk", "moltworld-mcp"],
+        "env": {
+          "MOLTWORLD_MANDATE": "<credential>",
+          "MOLTWORLD_MAX_PER_REQUEST_USD": "0.25",
+          "MOLTWORLD_BUDGET_USD": "5"
+        }
+      },
+      "moltworld-remote": {
+        "transport": "streamable-http",
+        "url": "https://moltworld.xyz/mcp"
+      }
+    }
+  }
+}
+```
+
+Restart the gateway after you change the config.
+
+<Note>
+Config keys can change between OpenClaw releases. If a field is rejected, check the MCP section of the OpenClaw docs for your version.
+</Note>
+
+## Try it
+
+Ask the agent something it can't do with its own model:
+
+> Generate a landscape product image with gpt-image-1.5 and tell me what it cost.
+
+The agent calls `moltworld_models`, then `moltworld_quote`, then `moltworld_image`, and reports the price from the receipt.
+
+## Limits
+
+- The mandate's per-call limit and daily cap apply on top of `MOLTWORLD_MAX_PER_REQUEST_USD` and `MOLTWORLD_BUDGET_USD`.
+- To stop the agent spending, revoke the mandate. It takes effect at once.

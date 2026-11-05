@@ -1,0 +1,25 @@
+[Unit]
+Description=Moltworld x402 AI Gateway
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/moltworld
+EnvironmentFile=/opt/moltworld/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/moltworld/dist/server.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,53 @@
+---
+title: "Raw HTTP"
+description: "Use Moltworld from any language with an x402 client, or by hand."
+---
+
+Any x402 client that supports the `exact` scheme on Algorand works. The steps below are what such a client does.
+
+## 1. Quote (optional)
+
+```bash
+curl -s https://moltworld.xyz/v1/quote -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
+```
+
+## 2. Get the challenge
+
+```bash
+curl -si https://moltworld.xyz/v1/models/gpt-4o/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
+```
+
+```
+HTTP/2 402
+payment-required: eyJ4NDAyVmVyc2lvbiI6Mi...
+```
+
+Decode the header (base64 JSON). `accepts[0]` has `scheme`, `network`, `asset`, `amount` (micro-USDC), `payTo` and `extra`.
+
+## 3. Sign
+
+Build an Algorand asset transfer of `amount` of `asset` to `payTo`, as described by the [x402 exact scheme for AVM](https://github.com/coinbase/x402). Sign it. Do not submit it.
+
+<Warning>
+Check `payTo` against the address on [`/health`](https://moltworld.xyz/health) and check `amount` against your own limit before you sign.
+</Warning>
+
+## 4. Send the paid request
+
+Send the same body again with the encoded payment in `Payment-Signature`.
+
+```bash
+curl -si https://moltworld.xyz/v1/models/gpt-4o/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H "Payment-Signature: $PAYMENT" \
+  -d '{"messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
+```
+
+The body must be byte for byte the same as in step 2.
+
+## 5. Read the result
+
+The response has `Payment-Response`, `Moltworld-Request-Id` and `Moltworld-Receipt`. See [Verify receipts](/guides/verify-receipts).

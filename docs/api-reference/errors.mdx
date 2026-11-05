@@ -1,0 +1,22 @@
+---
+title: "Errors"
+description: "Status codes and error codes."
+---
+
+```json
+{ "error": { "code": "model_not_found", "message": "Unknown model 'gpt-9'." } }
+```
+
+| Status | Codes | Charged |
+| --- | --- | --- |
+| 400 | `validation_error`, `invalid_json`, `invalid_mandate` | No |
+| 401 | `invalid_signature`, `unauthorized` | No |
+| 402 | none (challenge), `invalid_payload`, `duplicate_payment_in_flight`, `payer_exposure_limit`, `mandate_not_active`, `mandate_owner_mismatch`, `mandate_model_not_allowed`, `mandate_daily_cap_exceeded` | No |
+| 404 | `model_not_found`, `job_not_found`, `job_not_ready`, `receipt_not_found`, `mandate_not_found`, `listing_not_found`, `not_found` | No |
+| 409 | `payment_already_used`, `slug_taken`, `mandate_revoked` | Already paid once; no second charge |
+| 413 | `body_too_large` | No |
+| 429 | `rate_limited` | No |
+| 502 | `upstream_error`, `creator_unreachable`, `creator_error` | No, or refunded |
+| 503 | `model_unavailable`, `facilitator_unavailable`, `algod_unavailable` | No |
+
+For what to do about each one, see [Handle errors](/guides/handle-errors).

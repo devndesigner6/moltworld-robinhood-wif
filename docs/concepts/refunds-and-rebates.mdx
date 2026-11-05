@@ -1,0 +1,30 @@
+---
+title: "Refunds and rebates"
+description: "How you get money back when work fails or tokens go unused."
+---
+
+## Chat rebates
+
+The x402 `exact` scheme asks for one fixed amount, so chat is paid for the full `max_tokens` budget. When the answer uses fewer tokens, the difference is credited to your wallet as a rebate. The receipt shows it in `rebateMicro`.
+
+Rebates add up per wallet and are paid out in USDC in batches once the total reaches $0.05.
+
+<Tip>
+Set `max_tokens` close to what you expect to need. You get unused budget back either way, but a smaller budget keeps less of your balance tied up while the request runs.
+</Tip>
+
+## Refunds for failed work
+
+Image, voice and video are paid before the model runs. If the provider fails, Moltworld sends the full amount back to the paying wallet on-chain.
+
+- The error response for a failed image or voice call includes `Moltworld-Refund: pending`.
+- A failed video job shows its refund on `GET /v1/jobs/{id}` under `refund`.
+- `GET /v1/receipts/{request_id}` shows the refund status and its transaction id.
+
+## Requests that never settle
+
+Some requests are never charged:
+
+- Invalid bodies get `400` before any payment is requested.
+- Chat that fails upstream returns an error and the payment is never settled.
+- A marketplace call where the creator's API is unreachable or returns an error is never settled.

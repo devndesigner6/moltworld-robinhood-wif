@@ -1,0 +1,71 @@
+---
+title: "Verify receipts"
+description: "Check a Moltworld receipt without the SDK."
+---
+
+Both SDKs verify every receipt automatically. In TypeScript the result is `res.verification`. To check one yourself:
+
+<Steps>
+  <Step title="Decode the header">
+    `Moltworld-Receipt` is base64url-encoded JSON.
+  </Step>
+  <Step title="Fetch the key">
+    Get the key whose `kid` matches the receipt's from `/.well-known/moltworld-receipts.json`. Keys are raw 32-byte Ed25519 public keys, base64-encoded.
+  </Step>
+  <Step title="Check the signature">
+    Remove `sig`. Serialize the rest as canonical JSON: keys sorted, no whitespace, no undefined values. Verify `sig` (base64url) over those bytes.
+  </Step>
+  <Step title="Check the hashes">
+    `requestSha256` must equal the SHA-256 hex of the exact body bytes you sent. `responseSha256` must equal the SHA-256 hex of the response body bytes you received.
+  </Step>
+</Steps>
+
+## Node.js
+
+```ts
+import crypto from "crypto";
+
+const canonical = (v: any): string =>
+  v === null || typeof v !== "object"
+    ? JSON.stringify(v)
+    : Array.isArray(v)
+      ? `[${v.map(canonical).join(",")}]`
+      : `{${Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}`;
+
+export async function verify(header: string, requestBody: string, responseBytes: Uint8Array) {
+  const receipt = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
+  const doc = await (await fetch("https://moltworld.xyz/.well-known/moltworld-receipts.json")).json();
+  const raw = doc.keys.find((k: any) => k.kid === receipt.kid)?.publicKey;
+  if (!raw) return false;
+
+  const key = crypto.createPublicKey({
+    key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(raw, "base64")]),
+    format: "der",
+    type: "spki",
+  });
+  const { sig, ...payload } = receipt;
+  const sha = (b: Uint8Array | string) => crypto.createHash("sha256").update(b).digest("hex");
+
+  return (
+    crypto.verify(null, Buffer.from(canonical(payload)), key, Buffer.from(sig, "base64url")) &&
+    sha(requestBody) === receipt.requestSha256 &&
+    sha(responseBytes) === receipt.responseSha256
+  );
+}
+```
+
+## Python
+
+```python
+from moltworld import check_receipt
+
+ok = check_receipt(receipt, public_key_b64, request=request_bytes, response=response_bytes)
+```
+
+## In the browser
+
+The [Playground](https://moltworld.xyz/playground) has a receipt checker that does these steps with WebCrypto. Paste a header to check it.
+
+## Later lookups
+
+`GET /v1/receipts/{request_id}` returns the stored receipt, whether its signature is valid, and the settlement, rebate and refund status.

@@ -1,0 +1,29 @@
+---
+title: "A2A"
+description: "Find Moltworld models from agents that use the Agent2Agent protocol."
+---
+
+Moltworld runs an A2A agent that answers catalog questions. It returns models with their paid endpoints and prices, so the calling agent can pay through x402.
+
+- Agent card: [`/.well-known/agent-card.json`](https://moltworld.xyz/.well-known/agent-card.json)
+- JSON-RPC endpoint: `POST https://moltworld.xyz/a2a`
+- Skill: `find_models`
+
+```bash
+curl -s https://moltworld.xyz/a2a -H 'Content-Type: application/json' -d '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "SendMessage",
+  "params": {
+    "message": {
+      "messageId": "m1",
+      "role": "ROLE_USER",
+      "parts": [{ "text": "Which image models are available?", "mediaType": "text/plain" }]
+    }
+  }
+}'
+```
+
+The agent speaks A2A protocol version 1.0. Send `A2A-Version: 1.0` or leave the header out.
+
+Streaming is not supported. The A2A agent finds models; the paid calls go to the model endpoints over x402.

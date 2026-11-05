@@ -1,0 +1,94 @@
+---
+title: "Marketplace"
+description: "Sell your own API through Moltworld's x402 checkout."
+---
+
+Anyone with an Algorand wallet can list an HTTPS API. Moltworld handles the 402 challenge, payment, receipts and payouts. Creators receive 85% of each paid call.
+
+## How a call works
+
+1. A buyer sends `POST /v1/market/{slug}/call` and pays the listing's fixed price through x402.
+2. Moltworld forwards the body to your `upstream_url` with a signature you can check.
+3. Your API answers. If it answers with a 2xx status, the payment settles and the buyer gets your response and a receipt.
+4. If your API is unreachable or returns an error, the payment is never settled and the buyer is not charged.
+
+Your share is paid out in batched on-chain USDC transfers once it reaches $1.
+
+## Create a listing
+
+The listing is signed with the creator's wallet, so only the owner of the address can list under it.
+
+```ts
+import algosdk from "algosdk";
+import { signOwnerMessage } from "moltworld-sdk";
+
+const creator = algosdk.mnemonicToSecretKey(process.env.CREATOR_MNEMONIC!);
+const listing = {
+  action: "list",
+  creator: creator.addr.toString(),
+  slug: "weather-now",
+  name: "Weather now",
+  description: "Current conditions for a latitude and longitude.",
+  price_usd: 0.01,
+  upstream_url: "https://api.example.com/weather",
+  input_example: { lat: 52.37, lon: 4.9 },
+  issued_at: Math.floor(Date.now() / 1000),
+};
+
+const res = await fetch("https://moltworld.xyz/v1/market/listings", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ listing, creator_sig: signOwnerMessage(listing, creator.sk) }),
+});
+const { signing_secret } = await res.json();
+```
+
+<Warning>
+`signing_secret` is shown once. Store it on your server: you need it to check that calls came from Moltworld.
+</Warning>
+
+Rules:
+
+- `slug`: 3 to 48 characters of `a-z`, `0-9` and `-`.
+- `name`: up to 80 characters. `description`: 10 to 1000.
+- `upstream_url`: a public HTTPS address. Private and internal addresses are refused.
+- `issued_at`: within 10 minutes of server time.
+
+New listings are reviewed before they go live. Their status is `pending` until then.
+
+## Check calls from Moltworld
+
+Each forwarded call has these headers:
+
+| Header | Value |
+| --- | --- |
+| `X-Moltworld-Request-Id` | Request id |
+| `X-Moltworld-Payer` | Buyer's wallet address |
+| `X-Moltworld-Timestamp` | Unix seconds |
+| `X-Moltworld-Signature` | `base64url(HMAC-SHA256(signing_secret, "{timestamp}.{request_id}.{sha256_hex(body)}"))` |
+
+```ts
+import crypto from "crypto";
+
+function fromMoltworld(headers: Headers, rawBody: Buffer, secret: string) {
+  const ts = headers.get("x-moltworld-timestamp")!;
+  const id = headers.get("x-moltworld-request-id")!;
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
+  const bodyHash = crypto.createHash("sha256").update(rawBody).digest("hex");
+  const expected = crypto.createHmac("sha256", secret).update(`${ts}.${id}.${bodyHash}`).digest("base64url");
+  const given = headers.get("x-moltworld-signature") ?? "";
+  return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+```
+
+## Responses
+
+JSON responses are passed through as JSON. Anything else is returned as plain text, so a listing cannot serve HTML or scripts from Moltworld's domain. Your API has 30 seconds to answer.
+
+## Earnings
+
+```bash
+curl -s https://moltworld.xyz/v1/market/creators/<address>/earnings
+```
+
+The [marketplace page](https://moltworld.xyz/products/marketplace) shows the same numbers.

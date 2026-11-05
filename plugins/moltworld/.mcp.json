@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "moltworld": {
+      "type": "http",
+      "url": "https://moltworld.xyz/mcp"
+    }
+  }
+}

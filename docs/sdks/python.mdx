@@ -1,0 +1,67 @@
+---
+title: "Python"
+description: "The moltworld package for Python 3.9 and later."
+---
+
+```bash
+pip install ./sdk/python   # from the Moltworld repository
+```
+
+It depends on `py-algorand-sdk` and `pynacl`. Keys stay in your process.
+
+## Create a client
+
+```python
+import os
+from moltworld import MoltworldClient
+
+client = MoltworldClient(
+    mnemonic=os.environ["WALLET_MNEMONIC"],  # or private_key=
+    max_per_request_usd=0.25,
+    budget_usd=5,
+)
+```
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `mnemonic` / `private_key` | | Wallet. One is required |
+| `max_per_request_usd` | `1.0` | Refuse any single payment above this |
+| `budget_usd` | `None` | Refuse payments that would take this client's total above this |
+| `expected_pay_to` | from `/health` | Refuse to pay any other address |
+| `base_url` | `https://moltworld.xyz` | Gateway address |
+| `algod_url` | public node | Algod used to build transactions |
+| `timeout` | `120` | Seconds per HTTP request |
+
+## Calls
+
+```python
+client.chat("gpt-4o", [{"role": "user", "content": "Hi"}], max_tokens=200)
+client.image("gpt-image-1.5", "a lighthouse at dusk", size="1024x1024")
+client.speech("tts-1", "Hello there", voice="alloy")
+client.market("weather-now", {"lat": 52.37, "lon": 4.9})
+client.call("/v1/models/gpt-4o/chat/completions", body)
+```
+
+Each returns a `PaidResult` with `data`, `request_id`, `receipt`, `verified`, `paid_micro` and `replayed`.
+
+## Free calls
+
+```python
+client.quote("gpt-4o", body)
+client.health()
+client.job(job_id)
+client.wait_for_job(job_id)
+client.spent_usd
+```
+
+## Receipts
+
+```python
+from moltworld import check_receipt
+
+check_receipt(receipt, public_key_b64, request=request_bytes, response=response_bytes)
+```
+
+## Errors
+
+Failed calls raise `MoltworldError` with `status`, `code` and `body`.

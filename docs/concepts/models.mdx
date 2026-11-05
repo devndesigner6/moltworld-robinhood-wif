@@ -1,0 +1,27 @@
+---
+title: "Models"
+description: "The catalog and how to choose a model."
+---
+
+Moltworld sells chat, image and voice models from OpenRouter, OpenAI and ElevenLabs. Each model is named after the provider and model that serve it.
+
+The live list is at [`GET /v1/models`](/api-reference/endpoints/list-models) and on [moltworld.xyz/models](https://moltworld.xyz/models).
+
+## Endpoints by modality
+
+| Modality | Endpoint | Body |
+| --- | --- | --- |
+| Chat | `POST /v1/models/{model}/chat/completions` | `messages`, `max_tokens`, `temperature` |
+| Image | `POST /v1/models/{model}/images/generations` | `prompt`, `n`, `size` |
+| Voice | `POST /v1/models/{model}/audio/speech` | `input`, `voice`, `response_format`, `speed` |
+| Video | `POST /v1/models/{model}/videos/generations` | `prompt`, `duration`, `aspect_ratio` |
+
+Chat requests and responses follow the OpenAI chat completions shape, so existing parsing code works.
+
+## Catalog fields
+
+Each model lists `limits` (such as maximum prompt length or tokens) and the values it accepts: `sizes`, `durations`, `aspect_ratios`, `voices` and `audio_formats`. A body outside these gets `400` before any payment.
+
+## Availability
+
+At startup Moltworld checks every model against its provider's catalog. A model whose provider key is missing, or which the provider no longer lists, is withheld and cannot be paid for. `GET /v1/models?include=unavailable` shows withheld models and the reason.

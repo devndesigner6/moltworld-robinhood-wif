@@ -1,0 +1,86 @@
+---
+title: "Quickstart"
+description: "Make your first paid request."
+---
+
+You need an Algorand account that holds a little USDC. You do not need ALGO: the payment transaction carries no fee for you.
+
+<Warning>
+Use a dedicated wallet with a small balance for anything automated. For agents, use a [mandate](/products/mandates) so the agent never holds a private key.
+</Warning>
+
+<Steps>
+  <Step title="Install the SDK">
+    <CodeGroup>
+    ```bash npm
+    npm install moltworld-sdk
+    ```
+    ```bash pip
+    pip install ./sdk/python   # from the Moltworld repository
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Check the price">
+    Quotes are free and need no wallet.
+
+    ```bash
+    curl -s https://moltworld.xyz/v1/quote \
+      -H 'Content-Type: application/json' \
+      -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
+    ```
+  </Step>
+  <Step title="Make a paid call">
+    The client reads the 402 challenge, checks the amount against your limits, signs the USDC payment and sends the request again.
+
+    <CodeGroup>
+    ```ts TypeScript
+    import { MoltworldClient } from "moltworld-sdk";
+
+    const client = new MoltworldClient({
+      mnemonic: process.env.WALLET_MNEMONIC,
+      maxPerRequestUsd: 0.25,
+      budgetUsd: 5,
+    });
+
+    const res = await client.chat("gpt-4o", {
+      messages: [{ role: "user", content: "Write a haiku about receipts." }],
+      max_tokens: 200,
+    });
+
+    console.log(res.data.choices[0].message.content);
+    console.log(res.paidMicro, res.verification?.ok);
+    ```
+    ```python Python
+    import os
+    from moltworld import MoltworldClient
+
+    client = MoltworldClient(
+        mnemonic=os.environ["WALLET_MNEMONIC"],
+        max_per_request_usd=0.25,
+        budget_usd=5,
+    )
+
+    res = client.chat("gpt-4o", [{"role": "user", "content": "Write a haiku about receipts."}], max_tokens=200)
+    print(res.data["choices"][0]["message"]["content"])
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Look up the receipt">
+    Every paid response has a request id. The receipt endpoint shows the settlement, any rebate and any refund.
+
+    ```bash
+    curl -s https://moltworld.xyz/v1/receipts/<request_id>
+    ```
+  </Step>
+</Steps>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Pick a model" icon="list" href="/concepts/models">
+    Chat, image, voice and video models and how to choose.
+  </Card>
+  <Card title="Give an agent a budget" icon="shield-check" href="/products/mandates">
+    Let an agent pay within limits you set.
+  </Card>
+</CardGroup>

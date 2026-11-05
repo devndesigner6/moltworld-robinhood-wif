@@ -1,0 +1,56 @@
+---
+title: "Handle errors"
+description: "What each error means and what to do."
+---
+
+Errors share one shape:
+
+```json
+{ "error": { "code": "validation_error", "message": "messages is required." } }
+```
+
+## Before payment
+
+| Status | Code | What to do |
+| --- | --- | --- |
+| 400 | `validation_error`, `invalid_json` | Fix the body. You were not asked to pay |
+| 404 | `model_not_found` | Check the id in `GET /v1/models` |
+| 413 | `body_too_large` | Send a smaller body |
+| 429 | `rate_limited` | Wait for `Retry-After` |
+| 503 | `model_unavailable` | The model is withheld right now. Pick another |
+| 503 | `facilitator_unavailable` | Payments can't be verified right now. Retry later |
+
+## At payment
+
+These come back as `402`, and nothing is charged.
+
+| Code | Meaning |
+| --- | --- |
+| *(no code, `Payment-Required` header)* | Pay and retry |
+| `invalid_payload` | The payment could not be decoded |
+| `duplicate_payment_in_flight` | This payment is already being processed. Wait, then retry with the same signature to get the result |
+| `payer_exposure_limit` | This wallet has too many unsettled requests for its balance. Wait for them to finish |
+| `mandate_not_active` | The mandate is revoked, expired or not registered |
+| `mandate_owner_mismatch` | The mandate belongs to another account |
+| `mandate_model_not_allowed` | The mandate does not allow this model |
+| `mandate_daily_cap_exceeded` | The mandate's 24-hour cap is used up |
+
+## After payment
+
+| Status | Code | What happened |
+| --- | --- | --- |
+| 502 | `upstream_error` | The model failed. Chat was not charged. Image, voice and video are refunded (`Moltworld-Refund: pending`) |
+| 502 | `creator_unreachable`, `creator_error` | A marketplace API failed. The payment was not settled |
+| 409 | `payment_already_used` | This payment already completed, but the response was too large to replay. The error has the `receipt_url` |
+
+## Lost connections
+
+If you paid and the connection dropped, send the same request with the same `Payment-Signature`. You get the original response and are not charged again.
+
+## SDK errors
+
+Both SDKs raise `MoltworldError` with `status`, `code` and `body`. They also refuse to sign before anything is sent when:
+
+- the amount is above `maxPerRequestUsd`,
+- the payment would go over `budgetUsd`,
+- the `payTo` address is not the one Moltworld publishes on `/health`.
