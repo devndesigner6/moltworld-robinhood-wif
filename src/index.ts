@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { app, init } from "./app.js";
+import { app, init } from "./application.js";
 import { assertProductionConfig } from "./config.js";
 
 const serverlessApp = new Hono();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { app } from "../src/app.js";
+import { app } from "../src/application.js";
 import { INITIAL_MODELS } from "../src/models/registry.js";
 import { buildX402Routes } from "../src/x402/server.js";
 import { ModelRegistry } from "../src/models/registry.js";

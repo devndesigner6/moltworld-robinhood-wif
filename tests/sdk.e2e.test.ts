@@ -26,7 +26,7 @@ beforeAll(async () => {
   process.env.FACILITATOR_URL = harness.facilitatorUrl;
   process.env.ALGOD_URL = harness.algodUrl;
   process.env.MANDATE_COUNTER_APP_ID = String(COUNTER_APP_ID);
-  const mod = await import("../src/app.js");
+  const mod = await import("../src/application.js");
   const { config } = await import("../src/config.js");
   harness.chain.counter = {
     appId: COUNTER_APP_ID,

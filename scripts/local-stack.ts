@@ -34,7 +34,7 @@ const devWallet = algosdk.generateAccount();
 harness.chain.balances.set(devWallet.addr.toString(), 25_000_000);
 process.env.PLAYGROUND_DEV_WALLET_KEY = Buffer.from(devWallet.sk).toString("base64");
 
-const { app, init } = await import("../src/app.js");
+const { app, init } = await import("../src/application.js");
 const { startBackgroundWorkers } = await import("../src/workers/index.js");
 const { signOwnerMessage } = await import("../src/mandates/index.js");
 const { setCreatorFetcherForTests } = await import("../src/routes/market.js");

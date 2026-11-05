@@ -27,7 +27,7 @@ beforeAll(async () => {
   process.env.FACILITATOR_URL = harness.facilitatorUrl;
   process.env.ALGOD_URL = harness.algodUrl;
   process.env.MANDATE_COUNTER_APP_ID = "4242";
-  const mod = await import("../src/app.js");
+  const mod = await import("../src/application.js");
   const { config } = await import("../src/config.js");
   harness.chain.counter = { appId: 4242, payTo: config.payToAddress, assetId: Number(config.usdcAsaId), minAmountMicro: Math.round(config.priceMinFloor * 1_000_000), boxes: new Map() };
   await mod.init();

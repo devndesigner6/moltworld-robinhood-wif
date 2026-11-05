@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { app, init } from "./app.js";
+import { app, init } from "./application.js";
 import { assertProductionConfig, config } from "./config.js";
 import { defaultModelRegistry } from "./models/registry.js";
 import { scheduleCatalogSync } from "./models/sync.js";

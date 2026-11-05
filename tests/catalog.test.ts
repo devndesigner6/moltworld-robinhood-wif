@@ -232,7 +232,7 @@ describe("public surfaces", () => {
     harness = await startHarness();
     process.env.FACILITATOR_URL = harness.facilitatorUrl;
     process.env.ALGOD_URL = harness.algodUrl;
-    const mod = await import("../src/app.js");
+    const mod = await import("../src/application.js");
     app = mod.app;
     await mod.init();
   });

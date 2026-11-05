@@ -30,7 +30,7 @@ beforeAll(async () => {
   process.env.ALGOD_URL = harness.algodUrl;
   process.env.ADMIN_TOKEN = "test-admin-token";
   process.env.PUBLIC_DOMAIN = "http://localhost";
-  const appModule = await import("../src/app.js");
+  const appModule = await import("../src/application.js");
   app = appModule.app;
   await appModule.init();
   gateway = await import("../src/payments/gateway.js");
