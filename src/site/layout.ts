@@ -54,7 +54,7 @@ export function handleAsset(name: string) {
 }
 export const ASSET_NAMES = Object.keys(ASSETS);
 
-function vercelPaymentPreviewDisabled(): boolean {
+export function vercelPaymentPreviewDisabled(): boolean {
   if (process.env.VERCEL !== "1") return false;
   if (process.env.ENABLE_LIVE_PAYMENTS !== "true") return true;
   try {

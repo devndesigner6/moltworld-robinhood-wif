@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { defaultModelRegistry } from "../models/registry.js";
 import { quoteRequest, type ValidatedRequest } from "../pricing/index.js";
 import { icon } from "./icons.js";
-import { ASSET_NAMES, esc, handleAsset, renderPage } from "./layout.js";
+import { ASSET_NAMES, esc, handleAsset, renderPage, vercelPaymentPreviewDisabled } from "./layout.js";
 import { agentTypes, PAYS_LABEL } from "./agents.js";
 import { AUDIENCES, builtIn, PRODUCTS, WORKFLOWS } from "./nav.js";
 import {
@@ -259,27 +259,34 @@ function home(c: Context) {
   const models = catalog();
   if (config.paymentChain === "robinhood") {
     const chatModels = models.filter((model) => model.modality === "chat");
+    const checkoutDisabled = vercelPaymentPreviewDisabled();
+    const availabilityNote = checkoutDisabled
+      ? '<p class="note">This public deployment has no live database/provider configuration. API and WIF checkout routes return 503; no sample responses or payments are served.</p>'
+      : "";
     const hero = pageHero({
-      title: "AI calls, <em>paid in WIF.</em>",
+      title: checkoutDisabled ? "Moltworld, <em>WIF preview.</em>" : "AI calls, <em>paid in WIF.</em>",
       ctas: `${btn("/playground", "Open WIF Playground")}${btn("/models", "Chat models", "ghost")}`,
     });
-    const supported = sec(`${secHead("A real product flow on <em>Robinhood Chain.</em>")}${stepsList([
+    const supported = sec(`${secHead(checkoutDisabled ? "Implemented flow, <em>not active yet.</em>" : "A real product flow on <em>Robinhood Chain.</em>")}${stepsList([
       "Get a free, request-specific USD quote and WIF conversion snapshot.",
       "Connect MetaMask or Robinhood Wallet on chain 4663 and authorize the exact Permit2 payment.",
       "Receive an eligible chat response with a signed receipt and on-chain transaction link.",
     ])}`);
     const usage = sec(`${secHead("Build with the <em>HTTP API.</em>")}${codeBlock("POST /v1/quote" + String.fromCharCode(10) + "POST /v1/models/{model}/chat/completions" + String.fromCharCode(10) + "Payment asset: WIF ERC-20 on Robinhood Chain (eip155:4663)")}`);
     const limits = sec(`${secHead("Current migration <em>scope.</em>")}${facts([
-      ["wallet", "WIF checkout is enabled for chat requests."],
+      ["wallet", checkoutDisabled ? "WIF chat checkout is implemented but disabled until live database/provider configuration is complete." : "WIF checkout is enabled for chat requests."],
       ["receipt", "Receipts bind payer, exact WIF base units, USD quote, request, and response."],
       ["shield", "Unsafe or unavailable WIF price/balance reads fail closed."],
       ["tag", "Media, mandates, marketplace payouts, and automatic WIF refunds are not live on this rail."],
     ])}`);
-    const body = `${hero}${supported}${usage}${limits}${sec(`${secHead("Available chat models.", arrowLink("/models", "Browse catalog"))}${catalogWidget(chatModels)}`)}${sec(`${secHead("Recent settlement data.", arrowLink("/stats", "Open dashboard"))}${statsWidget()}`)}${ctaFinal("Try a WIF chat call <em>in the Playground.</em>", btn("/playground", "Open Playground"))}`;
+    const modelsSection = sec(`${secHead(checkoutDisabled ? "Live model catalog awaits setup." : "Available chat models.", arrowLink("/models", "Browse catalog"))}${checkoutDisabled ? '<p class="note">No live provider catalog or sample model list is served in this deployment.</p>' : catalogWidget(chatModels)}`);
+    const statsSection = sec(`${secHead("Recent settlement data.", arrowLink("/stats", "Open dashboard"))}${statsWidget()}`);
+    const finalCta = ctaFinal(checkoutDisabled ? "WIF checkout is <em>not active on this deployment.</em>" : "Try a WIF chat call <em>in the Playground.</em>", btn("/playground", checkoutDisabled ? "View Playground" : "Open Playground"));
+    const body = `${hero}${availabilityNote}${supported}${usage}${limits}${modelsSection}${statsSection}${finalCta}`;
     return renderPage(c, {
       path: "/",
       title: "Moltworld | AI calls paid in WIF on Robinhood Chain",
-      description: "A focused x402 pay-per-call chat gateway using WIF on Robinhood Chain, with exact quote-bound payments and signed receipts.",
+      description: checkoutDisabled ? "Public Moltworld preview. Live model requests and WIF checkout are disabled until database and provider configuration is complete." : "A focused x402 pay-per-call chat gateway using WIF on Robinhood Chain, with exact quote-bound payments and signed receipts.",
       body,
       data: catalogScript(chatModels),
     });
@@ -511,20 +518,24 @@ function products(c: Context) {
 
 function gateway(c: Context) {
   if (config.paymentChain === "robinhood") {
+    const checkoutDisabled = vercelPaymentPreviewDisabled();
     const ctas = `${btn("/playground", "Open Playground")}${btn("/v1/models", "Model catalog", "ghost")}`;
     const intro = pageHero({
         crumbs: [["Product", "/products"]],
-        title: "Chat models, <em>paid per call in WIF.</em>",
+        title: checkoutDisabled ? "WIF chat, <em>preview only.</em>" : "Chat models, <em>paid per call in WIF.</em>",
         ctas,
       });
+    const availabilityNote = checkoutDisabled
+      ? '<p class="note">This deployment has live API and payment routes disabled (503) until its real database and provider credentials are configured. It does not simulate responses or payments.</p>'
+      : "";
     const paymentFlow = sec(`${secHead("Exact quote. <em>Exact payment.</em>")}${stepsList([
-        "POST a valid chat request to /v1/quote for a USD estimate and WIF conversion snapshot.",
-        "Retry the model endpoint with the x402 payment authorization on Robinhood Chain.",
-        "The facilitator settles WIF to the configured wallet; Moltworld returns the answer and signed receipt.",
+        "When live configuration is enabled, POST a valid chat request to /v1/quote for a USD estimate and WIF conversion snapshot.",
+        "The client then submits the model request with an x402 payment authorization on Robinhood Chain.",
+        "With a live facilitator and provider, WIF is settled to the configured wallet and Moltworld returns the answer and signed receipt.",
       ])}`);
-    const supported = sec(`${secHead("Supported surface.")}${codeBlock("POST /v1/quote" + String.fromCharCode(10) + "POST /v1/models/gpt-4o/chat/completions" + String.fromCharCode(10) + "Payment: WIF ERC-20 on Robinhood Chain (eip155:4663)")}<p class="note">Only chat checkout is enabled on this payment rail. The quote endpoint and signed 402 challenge are authoritative; WIF/USD market pricing can move between requests.</p>`);
-    const body = intro + paymentFlow + supported + ctaFinal("Connect a wallet and <em>try a chat call.</em>", btn("/playground", "Open Playground"));
-    return renderPage(c, { path: "/products/gateway", title: "Gateway", description: "Chat API paid per request in WIF on Robinhood Chain through x402.", body });
+    const supported = sec(`${secHead("Supported surface.")}${codeBlock("POST /v1/quote" + String.fromCharCode(10) + "POST /v1/models/gpt-4o/chat/completions" + String.fromCharCode(10) + "Payment: WIF ERC-20 on Robinhood Chain (eip155:4663)")}<p class="note">${checkoutDisabled ? "The API is not active on this deployment. Only the chat-payment code path is implemented so far; other features are not live." : "Only chat checkout is enabled on this payment rail. The quote endpoint and signed 402 challenge are authoritative; WIF/USD market pricing can move between requests."}</p>`);
+    const body = intro + availabilityNote + paymentFlow + supported + ctaFinal(checkoutDisabled ? "WIF chat checkout is <em>not active yet.</em>" : "Connect a wallet and <em>try a chat call.</em>", btn("/playground", checkoutDisabled ? "View Playground" : "Open Playground"));
+    return renderPage(c, { path: "/products/gateway", title: checkoutDisabled ? "Gateway preview" : "Gateway", description: checkoutDisabled ? "The public site preview is available, but live API and WIF checkout are disabled until production configuration is complete." : "Chat API paid per request in WIF on Robinhood Chain through x402.", body });
   }
   const models = catalog();
   const s = snippets();
