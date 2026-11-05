@@ -9,9 +9,14 @@ serverlessApp.all("*", async (c) => {
 
   try {
     const upstream = await fetch(new Request(target, c.req.raw));
+    const noBody = c.req.method === "HEAD" || upstream.status === 204 || upstream.status === 304;
+    const body = noBody ? null : await upstream.arrayBuffer();
     const headers = new Headers(upstream.headers);
+    for (const name of ["content-length", "content-encoding", "transfer-encoding", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "upgrade"]) {
+      headers.delete(name);
+    }
     headers.set("Cache-Control", "no-store");
-    return new Response(upstream.body, {
+    return new Response(body, {
       status: upstream.status,
       statusText: upstream.statusText,
       headers,
