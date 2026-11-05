@@ -8,4 +8,4 @@ Robinhood Chain WIF checkout is currently live for chat requests only. The brows
 
 The deployment test flow checks the public site, model catalog, quote and 402 challenge without signing a wallet payment. Do not use a mock settlement or claim a paid request works until a real wallet signs and the production facilitator returns a settlement transaction.
 
-Vercel documents external rewrites as a reverse-proxy mechanism and describes path-capture syntax in its [rewrite guide](https://vercel.com/docs/routing/rewrites). The current Render origin is intentionally fixed in `vercel.json` so this project cannot be used as an arbitrary proxy. If the Render service URL changes, update the rewrite target and the `RENDER_BACKEND_URL` fallback together.
+Vercel documents external rewrites as a reverse-proxy mechanism and describes path-capture syntax in its [rewrite guide](https://vercel.com/docs/routing/rewrites). The current Render origin is intentionally fixed in `vercel.json` and `src/index.ts` so this project cannot be used as an arbitrary proxy. If the Render service URL changes, update both fixed targets and Render's `PUBLIC_DOMAIN` configuration.

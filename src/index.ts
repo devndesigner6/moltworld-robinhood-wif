@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
 const serverlessApp = new Hono();
-const renderOrigin = (process.env.RENDER_BACKEND_URL?.trim() || "https://motoworld-wif.onrender.com").replace(/\/$/, "");
+const renderOrigin = "https://motoworld-wif.onrender.com";
 
 serverlessApp.all("*", async (c) => {
   const incoming = new URL(c.req.url);
