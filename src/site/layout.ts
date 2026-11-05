@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import type { Context } from "hono";
-import { config } from "../config.js";
+import { assertProductionConfig, config } from "../config.js";
 import { wordmark } from "./brand.js";
 import { icon } from "./icons.js";
 import { agentTypes } from "./agents.js";
@@ -53,6 +53,17 @@ export function handleAsset(name: string) {
   return (c: Context): Response => c.body(ASSETS[name].body, 200, { "Content-Type": ASSETS[name].type, "Cache-Control": "public, max-age=31536000, immutable" });
 }
 export const ASSET_NAMES = Object.keys(ASSETS);
+
+function vercelPaymentPreviewDisabled(): boolean {
+  if (process.env.VERCEL !== "1") return false;
+  if (process.env.ENABLE_LIVE_PAYMENTS !== "true") return true;
+  try {
+    assertProductionConfig();
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 const CHEVRON = '<svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -163,6 +174,9 @@ export interface PageOptions {
 export function renderPage(c: Context, opts: PageOptions): Response {
   const origin = config.publicDomain;
   const fullTitle = opts.path === "/" ? opts.title : `${opts.title} | Moltworld`;
+  const migrationNotice = config.paymentChain === "robinhood"
+    ? `<div class="wrap"><p class="note" role="status">${vercelPaymentPreviewDisabled() ? "Preview deployment: paid API and WIF checkout are disabled until the real database and provider credentials are configured." : "Robinhood Chain WIF checkout is active for chat requests. Legacy Algorand mandates, marketplace payouts, and automatic USDC refunds are disabled until their WIF equivalents are completed."}</p></div>`
+    : "";
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -198,7 +212,7 @@ export function renderPage(c: Context, opts: PageOptions): Response {
 <body data-origin="${origin}" data-explorer="${config.paymentChain === "robinhood" ? (config.isMainnet ? "https://robinhoodchain.blockscout.com" : "https://explorer.testnet.chain.robinhood.com") : config.isMainnet ? "https://lora.algokit.io/mainnet" : "https://lora.algokit.io/testnet"}" data-world-src="${asset("world.js")}" data-flow-src="${asset("flow.js")}" data-three-src="${asset("vendor/three.js")}" data-tgpu-src="${asset("vendor/typegpu.js")}" data-pay-src="${asset("vendor/pay.js")}">
   <a class="skip" href="#main">Skip to content</a>
   ${header(opts.path)}
-  ${config.paymentChain === "robinhood" ? `<div class="wrap"><p class="note" role="status">Robinhood Chain WIF checkout is active for chat requests. Legacy Algorand mandates, marketplace payouts, and automatic USDC refunds are disabled until their WIF equivalents are completed.</p></div>` : ""}
+  ${migrationNotice}
   <main id="main">
 ${opts.body}
   </main>

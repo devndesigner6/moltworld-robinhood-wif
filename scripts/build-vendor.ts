@@ -1,6 +1,6 @@
 // Bundles the browser libraries into vendor/, which the gateway serves from its own origin.
 // Re-run after upgrading three, typegpu, use-wallet or the SDK:  pnpm vendor
-import { rmSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { build, type Plugin } from "esbuild";
 
@@ -31,3 +31,8 @@ await build({
   plugins: [stubHdWalletNodeImports],
   logLevel: "info",
 });
+
+// Vercel serves public/** through its CDN. Keep the same bundle tree available there.
+rmSync("public/assets/vendor", { recursive: true, force: true });
+mkdirSync("public/assets", { recursive: true });
+cpSync("vendor", "public/assets/vendor", { recursive: true });

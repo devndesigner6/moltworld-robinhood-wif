@@ -105,11 +105,14 @@ const robinhoodRpcUrl = process.env.ROBINHOOD_RPC_URL?.trim() || (robinhoodNetwo
   ? "https://rpc.mainnet.chain.robinhood.com"
   : "https://rpc.testnet.chain.robinhood.com");
 
+const vercelDomain = process.env.VERCEL_URL?.trim().replace(/^https?:\/\//i, "");
+const vercelPublicUrl = vercelDomain ? `https://${vercelDomain}` : "";
+
 export const config: GatewayConfig = {
   env: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT || "3000", 10),
   paymentChain,
-  publicDomain: (process.env.PUBLIC_DOMAIN?.trim() || (paymentChain === "robinhood" ? process.env.RENDER_EXTERNAL_URL?.trim() || "http://localhost:3000" : "https://moltworld.xyz")).replace(/\/+$/, ""),
+  publicDomain: (process.env.PUBLIC_DOMAIN?.trim() || (paymentChain === "robinhood" ? process.env.RENDER_EXTERNAL_URL?.trim() || vercelPublicUrl || "http://localhost:3000" : "https://moltworld.xyz")).replace(/\/+$/, ""),
   docsUrl: (process.env.DOCS_URL || "https://docs.moltworld.xyz").replace(/\/+$/, ""),
   facilitatorUrl: process.env.FACILITATOR_URL || (paymentChain === "robinhood" ? "https://x402.primer.systems" : "https://facilitator.goplausible.xyz"),
   facilitatorMerchantId: process.env.FACILITATOR_MERCHANT_ID?.trim() || "414f1538ce0d6de4",
