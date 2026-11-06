@@ -466,7 +466,7 @@ export const SITE_JS = String.raw`
         list.replaceChildren(el("span", { class: "note", text: message }));
         return wallets;
       }
-      list.replaceChildren(...wallets.options.map((w) => {
+      const renderWalletOptions = () => list.replaceChildren(...wallets.options.map((w) => {
         const b = el("button", { class: "btn btn-ghost btn-small wallet-btn", type: "button", "data-wallet": w.id });
         if (w.id === "walletconnect") b.title = "Choose MetaMask or another compatible wallet in the WalletConnect modal";
         if (w.icon) b.append(el("img", { src: w.icon, alt: "", width: "18", height: "18" }));
@@ -478,10 +478,24 @@ export const SITE_JS = String.raw`
         return b;
       }));
       wallets.onChange(() => refreshWallet());
+      const metaMask = wallets.options.find((w) => w.id === "injected" && w.name === "MetaMask");
+      if (metaMask) {
+        list.replaceChildren(el("span", { class: "note", text: "MetaMask detected. Confirm the connection in the wallet." }));
+        try {
+          await wallets.connect(metaMask.id);
+          await refreshWallet();
+        } catch (err) {
+          renderWalletOptions();
+          toast((err && err.message) || "MetaMask connection was not approved.");
+        }
+        return wallets;
+      }
+      renderWalletOptions();
       await refreshWallet();
       return wallets;
     }
     if (payConfig) {
+      loadPay().catch(() => {});
       $("walletLoad").addEventListener("click", () => loadWallets().catch(() => {}));
       $("walletOff").addEventListener("click", async () => { await wallets.disconnect(); await refreshWallet(); });
     }
@@ -768,6 +782,19 @@ export const SITE_JS = String.raw`
         else set("sAvgLatency", "—");
         if (s.avg_ticket_usd_quote != null) set("sAvgTicket", fmtUsd(s.avg_ticket_usd_quote), true);
         else set("sAvgTicket", "—");
+        const completed = Number(s.completed_requests || 0);
+        const quoteVolume = fmtUsd(s.gross_usd_quote);
+        set("networkSettles", num(completed));
+        set("networkVolume", quoteVolume);
+        set("networkShare", completed > 0 ? "100%" : "0%");
+        const chatSettles = Number((s.completed_by_modality && s.completed_by_modality.chat) ?? completed);
+        const endpointBody = $("topModelRows");
+        if (endpointBody) endpointBody.replaceChildren(el("tr", {},
+          el("td", { "data-label": "Endpoint group", text: "All eligible chat models" }),
+          el("td", { "data-label": "Type", text: "Chat" }),
+          el("td", { "data-label": "Settles", text: num(chatSettles) }),
+          el("td", { "data-label": "Quoted volume", text: quoteVolume }),
+          el("td", { "data-label": "Price detail", text: "Per-model split unavailable" })));
       } else if (body.facilitator) renderFacilitator(body.facilitator);
       else if (attempt < 2) setTimeout(() => load(attempt + 1), 2500);
       else { const t = $("topModelRows"); if (t) t.replaceChildren(el("tr", {}, el("td", { colspan: "5", text: "Facilitator figures are unavailable right now." }))); }

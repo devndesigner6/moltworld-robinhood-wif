@@ -226,9 +226,9 @@ curl -si ${origin}/v1/models/${model}/chat/completions \\
 function termDemo(models: CatalogEntry[]): string {
   const m = models.find((x) => x.slug === "gpt-4o") ?? models.find((x) => x.modality === "chat") ?? models[0];
   const slug = m?.slug ?? "gpt-4o";
-  if (config.paymentChain === "robinhood") return `<div class="term" data-term aria-label="Illustrative WIF chat payment flow">
+  if (config.paymentChain === "robinhood") return `<div class="term" data-term aria-label="Illustrative WIF checkout flow; no request is sent">
       <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="term-body"><span class="l t-cmd" data-wait="300">POST /v1/models/${esc(slug)}/chat/completions</span><span class="l t-402">&larr; 402 Payment Required &middot; WIF amount quoted</span><span class="l t-cmd" data-wait="900">retry with Payment-Signature</span><span class="l t-ok">chat response after successful request</span><span class="l t-ok">signed receipt</span><span class="l" data-wait="200"><span class="caret"></span></span></div>
+      <div class="term-body"><span class="l t-cmd" data-wait="200">Preview only &middot; no request is sent</span><span class="l t-cmd" data-wait="300">POST /v1/models/${esc(slug)}/chat/completions</span><span class="l t-402">&larr; 402 &middot; exact WIF amount comes from the live quote</span><span class="l t-cmd" data-wait="900">caller authorizes Payment-Signature</span><span class="l t-ok">200 OK &middot; response after successful paid call</span><span class="l t-ok">signed receipt accompanies completed response</span><span class="l" data-wait="200"><span class="caret"></span></span></div>
     </div>`;
   const price = m?.from ?? "$0.003";
   return `<div class="term" data-term>
@@ -238,11 +238,11 @@ function termDemo(models: CatalogEntry[]): string {
 }
 
 function meterDemo(): string {
-  if (config.paymentChain === "robinhood") return `<div class="meter" data-meter data-reveal data-cap="1" aria-label="Illustrative experimental WIF mandate guardrail">
-      <div class="meter-top"><span>Experimental guardrail</span><b data-spent>&mdash;</b></div>
+  if (config.paymentChain === "robinhood") return `<div class="meter" data-reveal aria-label="Experimental WIF mandate preview; no active mandate is connected">
+      <div class="meter-top"><span>Experimental setup &middot; not active</span><b>&mdash;</b></div>
       <div class="meter-bar">${"<i></i>".repeat(20)}</div>
-      <div class="limits"><span class="limit">per call <b>WIF quote</b></span><span class="limit">allowance <b>owner-set</b></span><span class="limit">status <b>unaudited</b></span></div>
-      <div class="meter-actions"><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Experimental mandate not active"></button><span data-state>experimental</span></div>
+      <div class="limits"><span class="limit">per call <b>owner-set</b></span><span class="limit">total cap <b>finite</b></span><span class="limit">expiry <b>owner-set</b></span></div>
+      <div class="meter-actions"><button class="switch" type="button" role="switch" aria-checked="false" aria-label="No active mandate" disabled></button><span>not active</span></div>
     </div>`;
   return `<div class="meter" data-meter data-reveal data-cap="5">
       <div class="meter-top"><span>Spent today</span><b data-spent>$0.00</b></div>
@@ -255,9 +255,9 @@ function meterDemo(): string {
 function splitDemo(): string {
   const s = share();
   const dash = ((2 * Math.PI * 58 * s) / 100).toFixed(1);
-  if (config.paymentChain === "robinhood") return `<div class="split-wrap" data-reveal aria-label="Illustrative marketplace split; marketplace disabled on Robinhood Chain">
-      <svg class="split-ring" viewBox="0 0 150 150" role="img" aria-label="Illustrative split only; no creator payout is enabled"><circle class="bg" cx="75" cy="75" r="58"/><circle class="fg" cx="75" cy="75" r="58" style="--dash:${dash}"/><text x="75" y="84" text-anchor="middle">&mdash;</text></svg>
-      <div class="split-legend"><span><i></i>Illustrative only</span><span><i class="o"></i>Marketplace disabled</span></div>
+  if (config.paymentChain === "robinhood") return `<div class="split-wrap" data-reveal aria-label="Marketplace is disabled on Robinhood Chain; no creator split or payout is live">
+      <svg class="split-ring" viewBox="0 0 150 150" role="img" aria-label="Marketplace off; no live earnings"><circle class="bg" cx="75" cy="75" r="58"/><text x="75" y="84" text-anchor="middle">OFF</text></svg>
+      <div class="split-legend"><span><i></i>Creator payouts</span><span><i class="o"></i>Disabled on WIF</span></div>
     </div>`;
   return `<div class="split-wrap" data-reveal>
       <svg class="split-ring" viewBox="0 0 150 150" role="img" aria-label="${s}% of each sale goes to the API seller"><circle class="bg" cx="75" cy="75" r="58"/><circle class="fg" cx="75" cy="75" r="58" style="--dash:${dash}"/><text x="75" y="84" text-anchor="middle">${s}%</text></svg>
@@ -266,9 +266,17 @@ function splitDemo(): string {
 }
 
 function receiptDemo(): string {
+  if (config.paymentChain === "robinhood") return `<div class="rcpt" data-reveal aria-label="Receipt format preview; not a real receipt">
+      <div class="rcpt-row"><span>network</span><span>Robinhood Chain</span></div>
+      <div class="rcpt-row"><span>asset</span><span>WIF</span></div>
+      <div class="rcpt-row"><span>amountAtomic</span><span>per completed payment</span></div>
+      <div class="rcpt-row"><span>txid</span><span>recorded after settlement</span></div>
+      <div class="rcpt-row"><span>hashes &amp; signature</span><span>generated per real response</span></div>
+      <span class="stamp">${icon("receipt", 14)} format preview &middot; not a receipt</span>
+    </div>`;
   return `<div class="rcpt" data-receipt data-reveal>
       <div class="rcpt-row"><span>model</span><span>illustrative chat</span></div>
-      <div class="rcpt-row"><span>asset</span><span>${config.paymentChain === "robinhood" ? "WIF / Robinhood Chain" : "USDC / Algorand"}</span></div>
+      <div class="rcpt-row"><span>asset</span><span>USDC / Algorand</span></div>
       <div class="rcpt-row"><span>requestSha256</span><span>example digest</span></div>
       <div class="rcpt-row"><span>responseSha256</span><span>example digest</span></div>
       <div class="rcpt-row"><span>sig</span><span>example signature</span></div>
@@ -277,15 +285,19 @@ function receiptDemo(): string {
 }
 
 function chatDemo(models: CatalogEntry[]): string {
-  if (config.paymentChain === "robinhood") return `<div class="chat" data-chat data-reveal aria-label="Illustrative WIF chat session">
-    <div class="chat-head">Illustrative chat session</div>
-    <div class="msg user" data-step data-wait="300">Send a chat request.</div>
-    <div class="tool" data-step><span class="fn">moltworld_quote</span>({ model: "gpt-4o", body: { messages: [...] } })<br>&rarr; exact WIF amount in 402</div>
-    <div class="tool" data-step data-wait="900">wallet authorization &middot; <span class="ok">caller approved</span></div>
-    <div class="tool" data-step data-wait="1100">signed receipt &middot; chat-only WIF flow</div>
-    <div class="msg bot" data-step>Illustrative response slot; no live model output is shown here.</div>
+  if (config.paymentChain === "robinhood") {
+    const model = models.find((m) => m.modality === "chat");
+    const slug = model?.slug ?? "configured-chat-model";
+    return `<div class="chat" data-chat data-reveal aria-label="Illustrative WIF chat flow; no model call or payment is made">
+    <div class="chat-head">Flow preview &middot; no request sent</div>
+    <div class="msg user" data-step data-wait="300">Explain x402 payments in one sentence.</div>
+    <div class="tool" data-step><span class="fn">moltworld_quote</span>({ model: "${esc(slug)}", body: { messages: [...] } })<br>&rarr; live quote is body-specific; none is fetched in this preview</div>
+    <div class="tool" data-step data-wait="900">wallet authorization &middot; user reviews and approves the exact 402</div>
+    <div class="tool" data-step data-wait="1100">signed receipt &middot; returned only after a successful paid request</div>
+    <div class="msg bot" data-step>Open the Playground for a real call. This card did not call AI or move WIF.</div>
     <div class="typing hidden" aria-hidden="true"><i></i><i></i><i></i></div>
   </div>`;
+  }
   const model = models.find(m => m.modality === "image");
   const slug = model?.slug ?? "gpt-image-1.5";
   const price = quoteFor(slug, { prompt: "Product hero photograph", n: 1 } as ValidatedRequest) ?? model?.from ?? "unavailable";
@@ -326,7 +338,18 @@ function robinhoodFlowBand(): string {
       <span class="flow-gate" aria-hidden="true"></span>
       <span class="flow-label c" aria-hidden="true">x402</span>
       <div class="flow-lanes" aria-hidden="true"><span style="top:50%">Chat<i style="background:var(--chat)"></i></span></div>
-    </div>`;
+  </div>`;
+}
+
+function wifModalityRow(models: CatalogEntry[]): string {
+  const cards = MODALITIES.map((key, i) => {
+    const available = models.filter((model) => model.modality === key);
+    const heading = `<div class="k"><i></i>${MODALITY_LABEL[key]}</div>`;
+    const bars = `<div class="bars" aria-hidden="true">${[0, 1, 2, 3].map((j) => `<b style="--j:${j + i}"></b>`).join("")}</div>`;
+    if (available.length) return `<a class="mod dot-${key}" href="/models?type=${key}" data-reveal style="--d:${i}">${heading}<div class="lab-stack">${vendors(available).slice(0, 4).map((v) => `<span title="${esc(vendorName(v))}">${logo(v)}</span>`).join("")}</div>${bars}</a>`;
+    return `<div class="mod dot-${key} disabled" data-reveal style="--d:${i}" role="img" aria-disabled="true" aria-label="${MODALITY_LABEL[key]} models are not enabled on WIF">${heading}<div class="lab-stack"></div><div class="mod-status">Not enabled on WIF</div>${bars}</div>`;
+  }).join("");
+  return `<div class="mod-row">${cards}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,14 +384,14 @@ function home(c: Context) {
         </div>`)}
       ${sec(`${secHead("Request to receipt <em>in one round trip.</em>")}
         ${robinhoodFlowBand()}
-        ${stepsList(["Send a chat request and receive its exact quote.", "Authorize the quoted WIF payment on Robinhood Chain; first use can require Permit2 approval and native ETH for gas.", "The chat response is returned before settlement completes.", "Keep or verify the signed receipt."])}`)}
-      ${sec(`${secHead("Every chat model. <em>Priced per call.</em>", arrowLink("/models", "Chat models"))}<div class="mod-row"><a class="mod dot-chat" href="/models?type=chat" data-reveal><div class="k"><i></i>Chat</div><div class="lab-stack">${vendors(chatModels).slice(0, 4).map((v) => `<span title="${esc(vendorName(v))}">${logo(v)}</span>`).join("")}</div><div class="bars" aria-hidden="true">${[0, 1, 2, 3].map((j) => `<b style="--j:${j}"></b>`).join("")}</div></a></div>`)}
+        ${stepsList(["Send a chat request and receive its exact quote.", "Authorize the quoted WIF payment on Robinhood Chain; first use can require Permit2 approval and native ETH for gas.", "The answer is generated first. WIF settlement completes before the response is returned.", "Keep or verify the signed receipt."])}`)}
+      ${sec(`${secHead("Every chat model. <em>Priced per call.</em>", arrowLink("/models", "Chat models"))}${wifModalityRow(chatModels)}`)}
       <div class="rails-band">${modelRails(chatModels)}</div>
-      ${sec(`<div class="agent-grid"><div><h2 data-split>Built for software <em>that spends money.</em></h2><ul class="feature-list" data-reveal><li>${icon("plug", 20)}<b>Remote and local MCP servers</b></li><li>${icon("package", 20)}<b>TypeScript and Python SDKs</b></li><li>${icon("check", 20)}<b>x402 quote, WIF payment, signed receipt</b></li></ul><div class="cta-row" data-reveal>${btn("/solutions/agents", "Connect your agent")}${btn(`${docs()}/agents/mcp`, "MCP docs", "ghost")}</div></div>${chatDemo(chatModels)}</div>`)}
+      ${sec(`<div class="agent-grid"><div><h2 data-split>Built for software <em>that spends money.</em></h2><ul class="feature-list" data-reveal><li>${icon("plug", 20)}<b>Remote and local MCP servers</b></li><li>${icon("mandate", 20)}<b>Experimental WIF mandates; real facilitator settlement is unverified</b></li><li>${icon("globe", 20)}<b>A2A agent card and llms.txt</b></li></ul><div class="cta-row" data-reveal>${btn("/solutions/agents", "Connect your agent")}${btn(`${docs()}/agents/mcp`, "MCP docs", "ghost")}</div></div>${chatDemo(chatModels)}</div>`)}
       ${sec(`<div class="dev-grid"><div><h2 data-split>One config for agents. <em>A few lines for apps.</em></h2><div class="sdk-list" data-reveal><a class="sdk" href="${docs()}/agents/mcp">${icon("plug", 20)}<b>MCP server</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/typescript">${icon("package", 20)}<b>TypeScript SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/python">${icon("package", 20)}<b>Python SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/api-reference/introduction">${icon("braces", 20)}<b>HTTP API / curl</b>${icon("arrow", 16)}</a></div></div><div data-reveal style="--d:2">${codeTabs("hero", [["mcp", "MCP", s.mcp, "json"], ["ts", "TypeScript", s.ts], ["py", "Python", s.py], ["curl", "curl", s.curl, "sh"]])}</div></div>`)}
       ${sec(`${secHead("A wallet <em>instead of an account.</em>")}<div class="compare" data-reveal role="table" aria-label="Moltworld on Robinhood Chain compared with API keys and plans"><div class="compare-row head" role="row"><div role="columnheader"></div><div class="us" role="columnheader">Moltworld on Robinhood</div><div role="columnheader">API keys and plans</div></div>${[["Sign-up", "No account; connect an EVM wallet", "An account per provider"], ["Your money", "In your wallet until a WIF request settles", "Prepaid to the provider, or billed later"], ["Per-call spend", "Exact quote and WIF amount", "Provider-side limits"], ["A leaked credential", "A payment still needs wallet authorization", "May spend up to the key's limit"], ["Failed chat request", "Payment is not settled before a response", "Depends on the provider"], ["Proof of each call", "Signed receipt and on-chain settlement", "Usage logs"], ["Mandates and marketplace", "Not enabled on this payment rail", "Build billing yourself"]].map(([k, us, them]) => `<div class="compare-row" role="row"><div role="rowheader">${k}</div><div class="us" role="cell">${icon("check", 16)}${us}</div><div role="cell">${them}</div></div>`).join("")}</div>`)}
       ${sec(`${secHead("Every payment <em>has on-chain proof.</em>", arrowLink("/stats", "Live network"))}${statsWidget()}<p class="note" data-reveal>Stats are loaded from the gateway ledger. USD figures are quote-time estimates, not mark-to-market WIF totals.</p>`)}
-      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<div class="rail" data-reveal><div class="card status-card"><span class="badge good">Chat</span><p>Chat-capable agents can use MCP or an SDK and authorize a real WIF request.</p></div><div class="card status-card"><span class="badge">Other surfaces</span><p>Image, voice, and video are not enabled. WIF mandates are experimental setup only, with live facilitator settlement unverified; marketplace payouts remain disabled.</p></div></div>`)}
+      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<p class="note" data-reveal>These agent categories can use the live WIF chat endpoint. Image, voice, and video generation are not enabled on this payment rail.</p><div class="uc-grid" data-reveal>${agentTypes().map(agentCard).join("")}</div>`)}
       ${sec(robinhoodFaq())}
       ${ctaFinal("Stop managing keys. <em>Pay per call.</em>")}`;
     return renderPage(c, { path: "/", title: "Moltworld | Every AI chat model, paid per request", description: "The pay-per-request chat gateway for AI. Eligible chat models are paid in WIF on Robinhood Chain through x402, with exact quotes and signed receipts.", body, data: catalogScript(chatModels) });
@@ -1150,11 +1173,26 @@ await fetch("/v1/quote", {
 // Solutions
 // ---------------------------------------------------------------------------
 
+function workflowTitle(u: (typeof WORKFLOWS)[number]): string {
+  if (config.paymentChain !== "robinhood") return u.title;
+  const status: Record<string, string> = {
+    "agent-allowance": " (experimental)",
+    "content-pipelines": " (not live on WIF)",
+    "agent-commerce": " (disabled)",
+    "team-budgets": " (not live on WIF)",
+  };
+  return `${u.title}${status[u.slug] ?? ""}`;
+}
+
+function audienceTitle(a: (typeof AUDIENCES)[number]): string {
+  return config.paymentChain === "robinhood" && a.label === "API sellers" ? "API sellers (marketplace disabled)" : a.label;
+}
+
 function solutions(c: Context) {
   const body = `
     ${pageHero({ title: "Built for agents, apps <em>and API sellers.</em>" })}
-    ${sec(`${secHead("By customer.")}${linkCards(AUDIENCES.map((a) => ({ title: a.label, href: a.href, icon: a.icon })))}`)}
-    ${sec(`${secHead("By workflow.", arrowLink("/use-cases", "Use cases by agent"))}${linkCards(WORKFLOWS.map((u) => ({ title: u.title, href: `/solutions/${u.slug}`, icon: "spark" })))}`)}
+    ${sec(`${secHead("By customer.")}${linkCards(AUDIENCES.map((a) => ({ title: audienceTitle(a), href: a.href, icon: a.icon })))}`)}
+    ${sec(`${secHead("By workflow.", arrowLink("/use-cases", "Use cases by agent"))}${linkCards(WORKFLOWS.map((u) => ({ title: workflowTitle(u), href: `/solutions/${u.slug}`, icon: "spark" })))}`)}
     ${ctaFinal("Start <em>in the Playground.</em>")}`;
   return renderPage(c, { path: "/solutions", title: "Solutions", description: "Moltworld for AI agents, app developers and API sellers.", body });
 }
@@ -1438,10 +1476,11 @@ function agentCard(t: ReturnType<typeof agentTypes>[number]): string {
 }
 
 function useCases(c: Context) {
+  const mandatesLabel = config.paymentChain === "robinhood" ? "Mandate setup (experimental)" : "Mandates";
   const body = `
-    ${pageHero({ title: "Every kind of agent. <em>One wallet.</em>", ctas: `${btn(`${docs()}/agents/mcp`, "Connect an agent")}${btn("/products/mandates", "Mandates", "ghost")}` })}
+    ${pageHero({ title: "Every kind of agent. <em>One wallet.</em>", ctas: `${btn(`${docs()}/agents/mcp`, "Connect an agent")}${btn("/products/mandates", mandatesLabel, "ghost")}` })}
     ${sec(`<div class="uc-grid" data-reveal>${agentTypes().map(agentCard).join("")}</div>`, { line: false })}
-    ${sec(`${secHead("By workflow.")}${linkCards(WORKFLOWS.map((u) => ({ title: u.title, href: `/solutions/${u.slug}`, icon: "spark" })))}`)}
+    ${sec(`${secHead("By workflow.")}${linkCards(WORKFLOWS.map((u) => ({ title: workflowTitle(u), href: `/solutions/${u.slug}`, icon: "spark" })))}`)}
     ${ctaFinal("Price your <em>first request.</em>")}`;
   return renderPage(c, { path: "/use-cases", title: "Use cases", description: "How every kind of agent uses Moltworld: personal, coding, knowledge-work, computer-use, multi-agent, media and voice agents, self-hosted or in the cloud.", body });
 }
@@ -1553,7 +1592,27 @@ function usage(c: Context) {
         <dt>Rebated</dt><dd id="sRebated">-</dd>
       </dl>
     </div></section>
-    ${config.paymentChain === "robinhood" ? "" : `<div id="facilitatorOnly" hidden>
+    ${config.paymentChain === "robinhood" ? `
+      ${sec(`
+        ${secHead("Network <em>mix.</em>")}
+        <div class="table-wrap" data-reveal><table class="stack">
+          <thead><tr><th>Network</th><th>Settles</th><th>Quoted volume (USD)</th><th>Share</th></tr></thead>
+          <tbody><tr><td data-label="Network">Robinhood Chain ${config.isMainnet ? "Mainnet" : "Testnet"}</td><td data-label="Settles" id="networkSettles">-</td><td data-label="Quoted volume" id="networkVolume">-</td><td data-label="Share" id="networkShare">-</td></tr></tbody>
+        </table></div>
+      `)}
+      ${sec(`
+        ${secHead("Every <em>endpoint.</em>")}
+        <div class="table-wrap" data-reveal><table class="stack">
+          <thead><tr><th>Endpoint group</th><th>Type</th><th>Settles</th><th>Quoted volume (USD)</th><th>Price detail</th></tr></thead>
+          <tbody id="topModelRows"><tr><td colspan="5">Loading from the gateway ledger</td></tr></tbody>
+        </table></div>
+        <p class="note">Only aggregate chat totals are published on this WIF deployment; per-model volume breakdown is not currently exposed.</p>
+      `)}
+      ${sec(`
+        ${secHead("Marketplace listings.")}
+        <p class="note">Marketplace listings, creator balances, and payouts are disabled on WIF. No listing volume is reported.</p>
+      `)}
+    ` : `<div id="facilitatorOnly" hidden>
       ${sec(`
         ${secHead("Network <em>mix.</em>")}
         <div class="table-wrap" data-reveal><table class="stack">

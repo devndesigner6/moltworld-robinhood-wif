@@ -321,6 +321,11 @@ a.card:hover { border-color: var(--line-2); transform: translateY(-3px); }
 .mod .v { font: 600 clamp(44px, 5vw, 64px)/1 var(--font); letter-spacing: -0.05em; margin: 18px 0 6px; }
 .mod .bars { position: absolute; right: 18px; top: 22px; display: flex; gap: 3px; align-items: flex-end; height: 26px; }
 .mod .bars b { width: 3px; background: var(--c); border-radius: 2px; animation: eq 1.2s ease-in-out infinite alternate; animation-delay: calc(var(--j) * -0.22s); }
+.mod.disabled { opacity: .58; cursor: not-allowed; }
+.mod.disabled:hover { border-color: var(--line); transform: none; }
+.mod.disabled .k i, .mod.disabled .bars b { background: var(--line-2); }
+.mod.disabled .bars b { animation: none; height: 3px; }
+.mod-status { margin-top: 4px; color: var(--dim); font: 12px var(--mono); }
 @keyframes eq { from { height: 20%; } to { height: 100%; } }
 @media (max-width: 860px) { .mod-row { grid-template-columns: 1fr 1fr; } }
 .rails-band { margin-top: calc(clamp(80px, 11vw, 140px) * -1 + 8px); padding-bottom: clamp(80px, 11vw, 140px); }

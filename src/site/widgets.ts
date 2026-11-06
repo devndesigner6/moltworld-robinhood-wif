@@ -90,7 +90,7 @@ export function modelRails(models: CatalogEntry[]): string {
     .join("")}</div>`;
 }
 
-export function catalogWidget(models: CatalogEntry[]): string {
+export function catalogWidget(models: CatalogEntry[], paymentChain: typeof config.paymentChain = config.paymentChain): string {
   const counts = modalityCounts(models);
   const cards = models
     .map(
@@ -113,9 +113,12 @@ export function catalogWidget(models: CatalogEntry[]): string {
     .join("");
   const tab = (key: string, label: string, n: number, pressed = false) =>
     `<button class="tab${key === "all" ? "" : ` dot-${key}`}" type="button" data-filter="${key}" aria-pressed="${pressed}">${key === "all" ? "" : "<i></i>"}${label} (${n})</button>`;
+  const unavailableTabs = paymentChain === "robinhood"
+    ? MODALITIES.filter((key) => counts[key] === 0).map((key) => `<button class="tab dot-${key}" type="button" disabled aria-disabled="true" title="${MODALITY_LABEL[key]} is not enabled on Robinhood Chain"><i></i>${MODALITY_LABEL[key]} (not live on WIF)</button>`).join("")
+    : "";
   return `
       <div class="filters" role="group" aria-label="Filter by modality">
-        ${tab("all", "All", models.length, true)}${MODALITIES.filter(k => counts[k] > 0).map((k) => tab(k, MODALITY_LABEL[k], counts[k])).join("")}
+        ${tab("all", "All", models.length, true)}${MODALITIES.filter(k => counts[k] > 0).map((k) => tab(k, MODALITY_LABEL[k], counts[k])).join("")}${unavailableTabs}
         <label class="sr-only" for="search">Search models</label>
         <input id="search" type="search" placeholder="Search models, labs or upstream ids">
       </div>
@@ -172,17 +175,17 @@ export function codeBlock(code: string, lang = "ts"): string {
 // ---------------------------------------------------------------- live widgets
 
 /** Who pays for runs: a connected wallet, or an agent mandate that signs within its on-chain limits. */
-export function payerWidget(): string {
+export function payerWidget(paymentChain: typeof config.paymentChain = config.paymentChain): string {
   const dev = config.playgroundDev;
-  if (config.paymentChain === "robinhood") {
+  if (paymentChain === "robinhood") {
     return `
       <div class="card payer" id="payer">
         <div class="payer-modes" role="group" aria-label="Pay with">
           <button class="tab" type="button" data-payer-mode="wallet" aria-pressed="true">${icon("wallet", 16)}Wallet</button>
-          <button class="tab" type="button" disabled aria-disabled="true" title="Mandates are not available on Robinhood Chain">${icon("mandate", 16)}Mandate</button>
+          <a class="tab" href="/products/mandates" title="Experimental setup only; autonomous WIF settlement is not verified">${icon("mandate", 16)}Mandate setup (beta)</a>
         </div>
         <div class="payer-pane" data-pane="wallet">
-          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small" type="button" id="walletLoad" aria-label="Connect an EVM wallet" title="Connect an EVM wallet">Connect wallet</button></div>
+          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small wallet-btn" type="button" id="walletLoad" aria-label="Connect MetaMask" title="Connect MetaMask directly"><img src="/assets/wallets/metamask.png" alt="" width="18" height="18">Connect MetaMask</button></div>
           <div class="payer-active hidden" id="walletActive"><span class="pulse" aria-hidden="true"></span><span class="mono" id="walletAddr"></span><span class="mono" id="walletBal"></span><button class="btn btn-ghost btn-small" type="button" id="walletOff">Disconnect</button></div>
         </div>
         <div class="payer-cap"><label for="capInput">Max per request (USD)</label><input id="capInput" type="number" min="0.001" step="0.01" value="1" inputmode="decimal"></div>

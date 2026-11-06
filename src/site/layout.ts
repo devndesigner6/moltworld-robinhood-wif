@@ -98,7 +98,7 @@ function header(path: string): string {
     })
     .join("");
   const links = NAV_LINKS.map((l) => `<li class="nav-item${isCurrent(path, l.href) ? " active" : ""}"><a class="nav-direct" href="${l.href}">${l.label}</a></li>`).join("");
-  const quickstartUrl = config.paymentChain === "robinhood" ? "/quickstart" : `${config.docsUrl}/quickstart`;
+  const quickstartUrl = `${config.docsUrl}/quickstart`;
   const githubUrl = config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-x402-gateway" : "https://github.com/hackcat29/moltworld-x402";
   return `<header class="site" id="siteHeader">
     <div class="wrap bar">
@@ -122,13 +122,12 @@ function header(path: string): string {
 
 function footer(): string {
   const docs = config.docsUrl;
-  const activeProducts = config.paymentChain === "robinhood"
-    ? PRODUCTS.filter((p) => p.label === "Gateway" || p.label === "Mandates" || p.label === "Marketplace").map((p) => p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p)
-    : PRODUCTS;
-  const activeAudiences = config.paymentChain === "robinhood" ? AUDIENCES.filter((a) => a.label !== "API sellers") : AUDIENCES;
+  const robinhood = config.paymentChain === "robinhood";
+  const activeProducts = PRODUCTS.map((p) => robinhood && p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : robinhood && p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p);
+  const activeAudiences = AUDIENCES.map((a) => robinhood && a.label === "API sellers" ? { ...a, label: "API sellers (marketplace disabled)" } : a);
   const githubUrl = config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-x402-gateway" : "https://github.com/hackcat29/moltworld-x402";
   const developerLinks: Array<readonly [string, string]> = config.paymentChain === "robinhood"
-    ? [["Developer hub", "/developers"], ["WIF quickstart", "/quickstart"], ["Playground", "/playground"], ["Live network", "/stats"], ["llms.txt", "/llms.txt"], ["GitHub", githubUrl]]
+    ? [["Developer hub", "/developers"], ["Documentation", docs], ["Quickstart", `${docs}/quickstart`], ["API reference", `${docs}/api-reference/introduction`], ["Playground", "/playground"], ["Live network", "/stats"], ["llms.txt", "/llms.txt"], ["GitHub", githubUrl]]
     : [["Developer hub", "/developers"], ["Documentation", docs], ["Quickstart", `${docs}/quickstart`], ["API reference", `${docs}/api-reference/introduction`], ["Playground", "/playground"], ["llms.txt", "/llms.txt"], ["GitHub", githubUrl]];
   const col = (title: string, links: Array<readonly [string, string]>) =>
     `<div><h4>${title}</h4><ul>${links.map(([label, href]) => `<li><a href="${esc(href)}">${esc(label)}</a></li>`).join("")}</ul></div>`;
@@ -139,7 +138,7 @@ function footer(): string {
           <a class="brand" href="/" aria-label="Moltworld home">${wordmark()}</a>
         </div>
         <div class="foot-grid">
-          ${col("Product", [["Overview", "/products"], ...activeProducts.map((p) => [p.label, p.href] as const), ["Signed receipts", "/products/receipts"], ["Models", "/models"], ["Pricing", "/pricing"]])}
+          ${col("Product", [["Overview", "/products"], ...activeProducts.map((p) => [p.label, p.href] as const), ["Signed receipts", "/products/receipts"], ...(robinhood ? [["Refunds and rebates (not live on WIF)", `${docs}/concepts/refunds-and-rebates`] as const] : []), ["Models", "/models"], ["Pricing", "/pricing"]])}
           ${col("Solutions", [["Overview", "/solutions"], ...activeAudiences.map((a) => [a.label, a.href] as const)])}
           ${col("Use cases", [["All use cases", "/use-cases"], ...agentTypes().slice(1, 6).map((t) => [t.short, `/use-cases/${t.slug}`] as const)])}
           ${col("Developers", developerLinks)}

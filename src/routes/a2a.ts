@@ -12,9 +12,12 @@ const fromMicro = (m: Parameters<typeof referenceRequest>[0]) => quoteRequest(m,
 const origin = config.publicDomain.replace(/\/+$/, "");
 
 export function getAgentCard(): AgentCard {
+  const robinhood = config.paymentChain === "robinhood";
   return {
     name: "Moltworld Model Catalog Agent",
-    description: "Finds Moltworld AI models and explains their Algorand USDC x402 prices and endpoints. For paid inference, use the x402 endpoint or Moltworld MCP tools with a caller-authorized payment signature.",
+    description: robinhood
+      ? "Finds chat models enabled for WIF payments on Robinhood Chain and returns their x402 endpoints. Exact WIF amounts are quoted for each request body. This A2A agent is discovery-only; it never signs or pays."
+      : "Finds Moltworld AI models and explains their Algorand USDC x402 prices and endpoints. For paid inference, use the x402 endpoint or Moltworld MCP tools with a caller-authorized payment signature.",
     supportedInterfaces: [{ url: `${origin}/a2a`, protocolBinding: "JSONRPC", protocolVersion: A2A_PROTOCOL_VERSION, tenant: "" }],
     provider: { organization: "Moltworld", url: origin },
     version: "1.0.0",
@@ -23,8 +26,11 @@ export function getAgentCard(): AgentCard {
     capabilities: { streaming: false, pushNotifications: false, extensions: [], extendedAgentCard: false },
     securitySchemes: {}, securityRequirements: [],
     defaultInputModes: ["text/plain"], defaultOutputModes: ["text/plain"],
-    skills: [{ id: "find_models", name: "Find AI models", description: "Find live chat, image, voice, and video models and return their x402 paid endpoints and USDC prices.",
-      tags: ["model-discovery", "algorand", "x402"], examples: ["List image models", "What is the cheapest chat model?", "How do I pay for GPT-4o?"],
+    skills: [{ id: "find_models", name: "Find AI models", description: robinhood
+      ? "Find chat models currently enabled on the WIF rail and return x402 endpoints plus a USD reference estimate; POST /v1/quote for the exact body-specific WIF amount."
+      : "Find live chat, image, voice, and video models and return their x402 paid endpoints and USDC prices.",
+      tags: robinhood ? ["model-discovery", "robinhood-chain", "wif", "x402"] : ["model-discovery", "algorand", "x402"],
+      examples: robinhood ? ["List enabled chat models", "What is the cheapest chat model?", "How do I pay for GPT-4o in WIF?"] : ["List image models", "What is the cheapest chat model?", "How do I pay for GPT-4o?"],
       inputModes: ["text/plain"], outputModes: ["text/plain"], securityRequirements: [] }],
     signatures: [],
   };
@@ -36,7 +42,7 @@ const executor: AgentExecutor = {
       .filter((part) => part.content?.$case === "text")
       .map((part) => part.content?.$case === "text" ? part.content.value : "")
       .join(" ").trim().toLowerCase();
-    const models = defaultModelRegistry.getEnabledModels();
+    const models = defaultModelRegistry.getEnabledModels().filter((model) => config.paymentChain !== "robinhood" || model.modality === "chat");
     const modality = (["chat", "image", "voice", "video"] as const).find((value) => question.includes(value));
     const named = models.find((model) => question.includes(model.slug.toLowerCase()));
     const matches = named ? [named] : models.filter((model) => !modality || model.modality === modality);
@@ -45,10 +51,14 @@ const executor: AgentExecutor = {
     }
     const shown = matches.slice(0, 10);
     const lines = [
-      `${matches.length} matching Moltworld models. Prices depend on the request body; POST /v1/quote gives the exact amount before paying.`,
-      ...shown.map((model) => `${model.displayName} (${model.slug}): from ${fromMicro(model).formattedPrice} USDC; POST ${origin}${getModelEndpoint(model)}. ${getModelDiscoveryDescription(model)}`),
+      config.paymentChain === "robinhood"
+        ? `${matches.length} matching enabled models. WIF amounts depend on the request body; POST /v1/quote returns the exact WIF amount before paying.`
+        : `${matches.length} matching Moltworld models. Prices depend on the request body; POST /v1/quote gives the exact amount before paying.`,
+      ...shown.map((model) => `${model.displayName} (${model.slug}): from ${fromMicro(model).formattedPrice} ${config.paymentChain === "robinhood" ? "USD reference estimate" : "USDC"}; POST ${origin}${getModelEndpoint(model)}. ${getModelDiscoveryDescription(model)}`),
       ...(matches.length > shown.length ? [`More: ${origin}/v1/models`] : []),
-      `Payment: Algorand ${config.isMainnet ? "Mainnet" : "Testnet"} USDC via x402 and GoPlausible. MCP: ${origin}/mcp`,
+      config.paymentChain === "robinhood"
+        ? `Payment: WIF on Robinhood Chain ${config.isMainnet ? "Mainnet" : "Testnet"} (${config.networkCaip2}) via x402 exact/Permit2. This discovery agent does not authorize payments. MCP: ${origin}/mcp`
+        : `Payment: Algorand ${config.isMainnet ? "Mainnet" : "Testnet"} USDC via x402 and GoPlausible. MCP: ${origin}/mcp`,
     ];
     bus.publish(AgentEvent.message({
       role: Role.ROLE_AGENT, messageId: crypto.randomUUID(), contextId: context.contextId,

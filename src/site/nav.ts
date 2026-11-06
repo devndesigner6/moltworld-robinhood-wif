@@ -82,12 +82,15 @@ export const AUDIENCES = [
 
 export function navMenus(): NavMenu[] {
   const docs = config.docsUrl;
-  const activeProducts = config.paymentChain === "robinhood"
-    ? PRODUCTS.filter((p) => p.label === "Gateway" || p.label === "Mandates" || p.label === "Marketplace").map((p) => p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p)
-    : PRODUCTS;
-  const activeBuiltIns = config.paymentChain === "robinhood" ? builtIn().filter((p) => p.label === "Signed receipts") : builtIn();
-  const activeAudiences = config.paymentChain === "robinhood" ? AUDIENCES.filter((a) => a.label !== "API sellers") : AUDIENCES;
-  const activeWorkflows = config.paymentChain === "robinhood" ? WORKFLOWS.filter((u) => u.slug === "model-escalation") : WORKFLOWS;
+  const robinhood = config.paymentChain === "robinhood";
+  const activeProducts = PRODUCTS.map((p) => robinhood && p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : robinhood && p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p);
+  const activeBuiltIns = builtIn().map((p) => robinhood && p.label === "Refunds and rebates" ? { ...p, label: "Refunds and rebates (not live on WIF)" } : p);
+  const activeAudiences = AUDIENCES.map((a) => robinhood && a.label === "API sellers" ? { ...a, label: "API sellers (marketplace disabled)" } : a);
+  const activeWorkflows = WORKFLOWS.map((u) => {
+    if (!robinhood) return u;
+    const status = u.slug === "model-escalation" ? "" : u.slug === "agent-allowance" ? " (experimental)" : u.slug === "agent-commerce" ? " (disabled)" : " (not live on WIF)";
+    return { ...u, short: `${u.short}${status}` };
+  });
   return [
     {
       id: "products",
@@ -129,8 +132,8 @@ export function navMenus(): NavMenu[] {
         {
           title: "Documentation",
           links: config.paymentChain === "robinhood"
-            ? [
-                { label: "WIF Quickstart", href: "/quickstart", icon: "bolt" },
+              ? [
+                { label: "Quickstart", href: `${docs}/quickstart`, icon: "bolt" },
                 { label: "Full documentation", href: docs, icon: "book" },
                 { label: "API reference", href: `${docs}/api-reference/introduction`, icon: "braces" },
                 { label: "MCP and agents", href: `${docs}/agents/mcp`, icon: "agent" },
