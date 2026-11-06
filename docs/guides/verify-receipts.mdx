@@ -1,24 +1,26 @@
 ---
 title: "Verify receipts"
-description: "Check a Moltworld receipt without the SDK."
+description: "Learn to verify a WIF receipt's Ed25519 signature, exact token amount, signing key, and request and response hashes without relying on sample transaction data."
 ---
 
-Both SDKs verify every receipt automatically. In TypeScript the result is `res.verification`. To check one yourself:
+Both SDKs verify receipts automatically. In TypeScript, the result is `res.verification`. To check a receipt yourself:
 
 <Steps>
   <Step title="Decode the header">
     `Moltworld-Receipt` is base64url-encoded JSON.
   </Step>
-  <Step title="Fetch the key">
-    Get the key whose `kid` matches the receipt's from `/.well-known/moltworld-receipts.json`. Keys are raw 32-byte Ed25519 public keys, base64-encoded.
+  <Step title="Fetch the signing key">
+    Get the key whose `kid` matches the receipt from [`/.well-known/moltworld-receipts.json`](https://motoworld-wif.vercel.app/.well-known/moltworld-receipts.json). Keys are raw 32-byte Ed25519 public keys, base64-encoded.
   </Step>
   <Step title="Check the signature">
-    Remove `sig`. Serialize the rest as canonical JSON: keys sorted, no whitespace, no undefined values. Verify `sig` (base64url) over those bytes.
+    Remove `sig`. Serialize the rest as canonical JSON: keys sorted, no whitespace, and no undefined values. Verify `sig` (base64url) over those bytes.
   </Step>
   <Step title="Check the hashes">
-    `requestSha256` must equal the SHA-256 hex of the exact body bytes you sent. `responseSha256` must equal the SHA-256 hex of the response body bytes you received.
+    `requestSha256` must equal the SHA-256 hex of the exact request body bytes you sent. `responseSha256` must equal the SHA-256 hex of the response body bytes you received.
   </Step>
 </Steps>
+
+On Robinhood WIF receipts, `amountAtomic` is the exact 18-decimal WIF transfer amount; `quotedUsdMicro` is the separate USD quote in micro-dollars. Do not treat USD micro-units as WIF or USDC units.
 
 ## Node.js
 
@@ -34,7 +36,7 @@ const canonical = (v: any): string =>
 
 export async function verify(header: string, requestBody: string, responseBytes: Uint8Array) {
   const receipt = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
-  const doc = await (await fetch("https://moltworld.xyz/.well-known/moltworld-receipts.json")).json();
+  const doc = await (await fetch("https://motoworld-wif.vercel.app/.well-known/moltworld-receipts.json")).json();
   const raw = doc.keys.find((k: any) => k.kid === receipt.kid)?.publicKey;
   if (!raw) return false;
 
@@ -64,8 +66,8 @@ ok = check_receipt(receipt, public_key_b64, request=request_bytes, response=resp
 
 ## In the browser
 
-The [Playground](https://moltworld.xyz/playground) has a receipt checker that does these steps with WebCrypto. Paste a header to check it.
+The [WIF Playground](https://motoworld-wif.vercel.app/playground) includes a receipt verifier that checks the signature and hashes with WebCrypto. Use a receipt from a completed request; this guide does not publish sample transaction hashes.
 
 ## Later lookups
 
-`GET /v1/receipts/{request_id}` returns the stored receipt, whether its signature is valid, and the settlement, rebate and refund status.
+`GET /v1/receipts/{request_id}` returns the stored receipt, signature validity, and settlement status. The response's `amount` is a readable USD quote; use `receipt.amountAtomic` for the exact WIF amount. Automatic WIF rebates and refunds are not enabled.

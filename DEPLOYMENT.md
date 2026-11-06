@@ -1,55 +1,56 @@
-# Production deployment checklist
+# Production deployment guide
 
-## Target architecture
+## Current public architecture
 
-This codebase is a single Hono/Node service: the same Render process serves the website and Playground, x402 API, request ledger hooks, and receipts. The public `https://motoworld-wif.vercel.app` hostname proxies to `https://motoworld-wif.onrender.com` using external rewrites; the Vercel Hono function also forwards any function-routed paths, including `/`, to that fixed Render origin. Keep provider/database secrets on Render; Vercel does not need them.
+This repository powers the WIF deployment. The public site and API are served at `https://motoworld-wif.vercel.app`; Vercel proxies API and site requests to the Hono/Node service at `https://motoworld-wif.onrender.com`. Render holds the database connection and provider/receipt secrets. Vercel does not need the database URL or provider key.
 
-Keep the original Algorand site running until the new Robinhood deployment has passed the live readiness checks and you explicitly approve the cutover. No deployment or production transaction should be used as a substitute for this checklist.
+The live Robinhood Chain checkout is **chat-only**. One user-authorized WIF mainnet payment has been confirmed with its returned AI response and signed receipt. The user connected and signed from their own wallet; the gateway never holds a wallet key. Autonomous mandates, marketplace listings and creator payouts, image/speech/video calls, and automatic WIF refunds are not live.
+
+The WIF documentation is hosted at [algorand-54fd52b3.mintlify.app](https://algorand-54fd52b3.mintlify.app). This generated Mintlify hostname is account-provisioned; the legacy `docs.moltworld.xyz` host is a separate deployment and is not changed by this guide.
 
 ## Public chain settings
 
 - Chain: Robinhood Chain mainnet, chain ID `4663`, CAIP-2 `eip155:4663`.
 - WIF ERC-20: `0x5173b8eA6923c2d40267890D45C46a3480954773` (18 decimals).
 - Merchant `payTo`: `0xdfF3eC4B06e39BCE04Ece791D2372C03b8AAC78a`.
-- The WIF contract address identifies the asset; `payTo` identifies your receiving wallet. The receiving address was found on Robinhood Chain Blockscout as a non-contract account. These values must never be swapped.
-- Default x402 facilitator: `https://x402.primer.systems`; production startup must verify that its supported-network response includes Robinhood Chain and the configured exact/Permit2 flow.
-- Live price source: Uniswap v4 StateView reads the exact WIF/ETH PoolId on Robinhood Chain and combines that spot state with Chainlink's on-chain ETH/USD feed. The adapter checks chain ID, latest-block age, Chainlink's published 24-hour heartbeat, and active liquidity. Identical reads are coalesced and cached for five seconds; RPC/oracle failures fail closed and never reuse an expired snapshot. A swap in the last five minutes is not required because the current pool state is read directly from chain.
+- The token contract identifies the asset; `payTo` identifies the receiving wallet. Never interchange them.
+- Default x402 facilitator: `https://x402.primer.systems`; production startup checks the configured Robinhood exact/Permit2 flow.
+- Live WIF/USD pricing reads the exact Uniswap v4 pool through StateView and combines it with Chainlink's on-chain ETH/USD feed. Chain ID, latest-block freshness, oracle heartbeat, and active liquidity are checked. RPC/oracle failures fail closed; no hard-coded price fallback is used.
 
-## Secrets and managed services required
+## Secrets and managed services
 
-Add the following only in Render's environment settings or secure secret store; do not commit them or send wallet secrets in chat:
+Set production secrets only in Render's environment settings or a secure secret manager. Never commit them or send wallet keys in chat.
 
-| Variable | What to provide |
+| Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Render PostgreSQL internal connection URL; production receipts and payment records require durable PostgreSQL. |
-| `RECEIPT_SIGNING_KEY` | A generated base64 32-byte Ed25519 seed. Generate a new secret specifically for this deployment and preserve it for receipt verification. |
-| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | A real provider credential with at least one supported chat model. |
-| `ADMIN_TOKEN` | A strong random bearer token if operator endpoints are needed; otherwise leave unset. |
-| `REDIS_URL` | Recommended before scaling beyond one app instance, because replay locks and concurrent spend reservations are shared through Redis. |
-| `FACILITATOR_URL` | Optional override if not using the documented Primer facilitator. |
+| `DATABASE_URL` | Render PostgreSQL internal URL for durable request and receipt records. |
+| `RECEIPT_SIGNING_KEY` | Persistent base64 Ed25519 seed used to sign public receipts. |
+| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | Real model provider credential for enabled chat models. |
+| `ADMIN_TOKEN` | Strong bearer token only if operator endpoints are needed. |
+| `REDIS_URL` | Recommended before running multiple app instances so replay locks and reservations are shared. |
+| `FACILITATOR_URL` | Optional override for the documented Primer facilitator. |
 
-Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, `WIF_TOKEN_ADDRESS`, and `WIF_POOL_ID` exactly as in `.env.example`. Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app`. The Vercel rewrite target is the fixed Render hostname; if either hostname changes, update the Vercel route and Render `PUBLIC_DOMAIN` together. Render's free web service may sleep when idle, so allow its first request to wake it.
+Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, `WIF_TOKEN_ADDRESS`, `WIF_POOL_ID`, `PUBLIC_DOMAIN`, and `DOCS_URL` as shown in [`.env.example`](.env.example). Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Do not add a merchant private key to the backend; the server only needs the public recipient address.
 
-## Build and run commands
+## Build and verify
 
 - Build: `node_modules/.bin/tsx scripts/build-vendor.ts && node_modules/.bin/tsc && node_modules/.bin/tsc -p sdk/js/tsconfig.json --noEmit`
 - Start: `node dist/server.js`
-- Health check: `GET /health`
-- API quote: `POST /v1/quote`
-- x402 chat endpoint: `POST /v1/models/{model}/chat/completions`
+- Health: `GET /health`
+- Free quote: `POST /v1/quote`
+- Paid chat: `POST /v1/models/{model}/chat/completions`
+- Public API/docs base: `https://motoworld-wif.vercel.app`
 
-For Render, build dependencies must include the development dependencies needed for the asset build and TypeScript compilation. Set one instance initially; provision PostgreSQL and, if running more than one instance, Redis. Confirm the actual Render plan/cost in the service creation flow before provisioning paid resources.
+For Render, build dependencies must include the development dependencies needed for the asset build and TypeScript compilation. Use one instance initially. If running more than one instance, provision Redis as well as PostgreSQL. Confirm plan and cost in Render before provisioning paid resources.
 
-## Cutover blockers
+## Availability on Render Free
 
-Do not direct `moltworld.xyz` traffic or advertise mainnet checkout until all of the following pass:
+The current Render Free web service can spin down when idle, so the first request after inactivity may be slow while it wakes. A scheduled self-ping is not a reliable way to make a Free service continuously available and no keep-alive cron is configured. For predictable always-on availability, use a paid always-on web-service plan and review Render's current [Free instance limits](https://render.com/docs/free) and [pricing](https://render.com/pricing).
 
-1. Required secrets and persistent services are set.
-2. Render build succeeds and `/health` is ready, with the app reporting Robinhood Chain mainnet and real providers.
-3. Facilitator reports Robinhood Chain plus the WIF Permit2 scheme as supported; Primer documents `eip155:4663` and Permit2 for ERC-20 tokens.
-4. The production WIF/USD source reports an acceptable current price and liquidity.
-5. MetaMask/Robinhood Wallet connects to chain 4663, WIF balance is readable, and the first-use exact Permit2 approval is understandable (users need a small ETH gas balance for that approval).
-6. A user-signed, low-value real transaction is observed on Blockscout, is paid in WIF to the configured `payTo`, is stored durably, and produces a valid signed receipt. No application test has broadcast this transaction.
-7. User-facing pages and support text clearly distinguish enabled WIF chat, Python/TypeScript/MCP clients, and disabled legacy Algorand features.
+## Not enabled on the WIF rail
 
-No test fixture, local simulated settlement, or mock transaction satisfies item 6. The migration currently disables non-chat modalities, old mandate flows, marketplace payouts, and automatic WIF refunds; these must be implemented and tested before the full website can be described as migrated.
+- Image, speech, and video model payments.
+- EIP-1271 spending mandates. The contract and signer in the repository are an experimental prototype, undeployed and unaudited, with no owner setup/revoke flow or real facilitator validation.
+- Marketplace listing, creator earnings reconciliation, and WIF payouts. The routes are disabled; the staged ledger/credit code is not escrow or an automated payout service.
+- Automatic WIF refunds or rebates. A rare post-settlement error requires manual review.
+- Autonomous payment from the remote MCP server. It is keyless and relays only caller-signed chat requests.

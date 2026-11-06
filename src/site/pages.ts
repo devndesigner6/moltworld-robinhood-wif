@@ -522,10 +522,10 @@ function faq(): string {
     [
       "How is a mandate different from an API key with a limit?",
       `An API key is a bearer secret to a balance the provider holds, and its limits live in the provider's database. A mandate leaves the money in your wallet, its per-call cap, payee and expiry${
-        onChainCap() ? ", and its daily cap," : ""
+      onChainCap() ? ", and its daily cap," : ""
       } are enforced by Algorand, and the credential is useless without the agent's key. Every call settles on-chain with a signed receipt.`,
     ],
-    ["Is it open source?", `Yes. The gateway, SDKs and docs are MIT licensed on <a href="https://github.com/hackcat29/moltworld-x402">GitHub</a>.`],
+    ["Is it open source?", `Yes. The gateway, SDKs and docs are MIT licensed on <a href="https://github.com/devndesigner6/moltworld-x402-gateway">GitHub</a>.`],
   ];
   return `<div class="faq">
       <h2 data-split>Questions.</h2>

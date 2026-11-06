@@ -45,7 +45,7 @@ export class OpenRouterProvider implements AIProvider {
     return {
       Authorization: `Bearer ${this.apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://moltworld.xyz",
+      "HTTP-Referer": "https://motoworld-wif.vercel.app",
       "X-Title": "Moltworld x402 AI Gateway",
     };
   }

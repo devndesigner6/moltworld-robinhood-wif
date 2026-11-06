@@ -3,30 +3,34 @@
   "info": {
     "title": "Moltworld API",
     "version": "3.0.0",
-    "description": "Current Robinhood deployment: chat models paid per request in WIF on Robinhood Chain (`eip155:4663`) through x402 ExactEvmScheme and an EVM wallet. WIF is an 18-decimal ERC-20 and first use may require an exact Permit2 approval. Image, voice, video, marketplace, automatic refunds, and agent mandates are not enabled on this rail.\n\nPaid chat endpoints return HTTP 402 with a `Payment-Required` header until the request carries a valid `Payment-Signature` header from an x402 EVM client."
+    "description": "Live Robinhood Chain deployment: chat requests are paid per call in WIF using x402 exact EVM/Permit2 on `eip155:4663`. Free model discovery and quotes are available. WIF is an 18-decimal ERC-20. Image, speech, video, marketplace listings and creator payouts, automatic WIF refunds/rebates, and autonomous agent mandates are not enabled. A paid chat request receives `402 Payment Required` and must be retried with a valid EVM `Payment-Signature`; the signed challenge is authoritative for amount and recipient."
   },
   "servers": [
     {
-      "url": "https://moltworld.xyz",
-      "description": "Production"
+      "url": "https://motoworld-wif.vercel.app",
+      "description": "Live WIF API"
     }
   ],
   "security": [],
   "tags": [
     {
-      "name": "Models"
+      "name": "Models",
+      "description": "Chat is the only paid modality enabled on the Robinhood WIF deployment."
     },
     {
       "name": "Pricing"
     },
     {
-      "name": "Jobs and receipts"
+      "name": "Jobs and receipts",
+      "description": "Receipt lookup and signing keys are live. Video jobs are retained for legacy deployments only."
     },
     {
-      "name": "Mandates"
+      "name": "Mandates",
+      "description": "Legacy Algorand mandate routes; unavailable on the Robinhood WIF deployment."
     },
     {
-      "name": "Marketplace"
+      "name": "Marketplace",
+      "description": "WIF marketplace routes are disabled; listings, creator reconciliation, and payouts are not available."
     },
     {
       "name": "Service"
@@ -39,7 +43,7 @@
           "Models"
         ],
         "summary": "Chat completion",
-        "description": "OpenAI-style chat. Priced from input size and `max_tokens`; charged after the answer is ready. Unused budget is paid back as a rebate.",
+        "description": "OpenAI-style chat. Pricing uses the exact request body and output-token budget. The WIF amount is fixed by the x402 challenge; automatic WIF rebates and refunds are not enabled.",
         "security": [
           {
             "x402": []
@@ -125,7 +129,7 @@
           "Models"
         ],
         "summary": "Generate images",
-        "description": "Priced per image. Charged before generation and refunded on-chain if the provider fails.",
+        "description": "Not available on Robinhood WIF: this deployment is chat-only. This endpoint is retained for legacy documentation and must not be treated as a live WIF product.\n\nPriced per image. Charged before generation and refunded on-chain if the provider fails.",
         "security": [
           {
             "x402": []
@@ -202,7 +206,8 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/models/{model}/audio/speech": {
@@ -211,7 +216,7 @@
           "Models"
         ],
         "summary": "Text to speech",
-        "description": "Priced per character. Charged before generation and refunded on-chain if the provider fails.",
+        "description": "Not available on Robinhood WIF: this deployment is chat-only. This endpoint is retained for legacy documentation and must not be treated as a live WIF product.\n\nPriced per character. Charged before generation and refunded on-chain if the provider fails.",
         "security": [
           {
             "x402": []
@@ -288,7 +293,8 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/market/{slug}/call": {
@@ -297,7 +303,7 @@
           "Marketplace"
         ],
         "summary": "Call a listing",
-        "description": "Calls a creator's API. Priced by the listing; charged after the creator's API returns 2xx. The response body is the creator's response.",
+        "description": "Disabled on Robinhood WIF: this route returns `503 marketplace_disabled`. WIF listings, creator earnings reconciliation, and payouts are not a supported service.\n\nCalls a creator's API. Priced by the listing; charged after the creator's API returns 2xx. The response body is the creator's response.",
         "security": [
           {
             "x402": []
@@ -363,8 +369,12 @@
           },
           "502": {
             "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/quote": {
@@ -373,7 +383,7 @@
           "Pricing"
         ],
         "summary": "Get a quote",
-        "description": "Exact price for a request body, without paying. The amount equals the one in the 402 challenge for the same body.",
+        "description": "Free exact price quote for a validated chat request body, without paying. For the same request body, the WIF atomic amount is quote-bound to the 402 challenge; that signed challenge is authoritative.",
         "requestBody": {
           "required": true,
           "content": {
@@ -425,6 +435,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         }
       }
@@ -442,10 +455,7 @@
             "schema": {
               "type": "string",
               "enum": [
-                "chat",
-                "image",
-                "voice",
-                "video"
+                "chat"
               ]
             }
           },
@@ -522,7 +532,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Not available on Robinhood WIF: video jobs are not enabled. This endpoint is retained for legacy documentation only."
       }
     },
     "/v1/receipts/{id}": {
@@ -586,7 +598,7 @@
           "Mandates"
         ],
         "summary": "Draft a mandate",
-        "description": "Builds the mandate program for an owner. Nothing is stored.",
+        "description": "Unavailable on Robinhood WIF: the legacy Algorand mandate API is blocked with `503 migration_incomplete`. The separate EVM session-mandate contract is an undeployed, unaudited prototype, not a production feature.\n\nBuilds the mandate program for an owner. Nothing is stored.",
         "requestBody": {
           "required": true,
           "content": {
@@ -614,7 +626,8 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/mandates": {
@@ -661,8 +674,13 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Unavailable on Robinhood WIF: the legacy Algorand mandate API is blocked with `503 migration_incomplete`. The separate EVM session-mandate contract is an undeployed, unaudited prototype, not a production feature."
       },
       "get": {
         "tags": [
@@ -697,8 +715,13 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Unavailable on Robinhood WIF: the legacy Algorand mandate API is blocked with `503 migration_incomplete`. The separate EVM session-mandate contract is an undeployed, unaudited prototype, not a production feature."
       }
     },
     "/v1/mandates/{id}": {
@@ -735,8 +758,13 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Unavailable on Robinhood WIF: the legacy Algorand mandate API is blocked with `503 migration_incomplete`. The separate EVM session-mandate contract is an undeployed, unaudited prototype, not a production feature."
       }
     },
     "/v1/mandates/{id}/revoke": {
@@ -745,7 +773,7 @@
           "Mandates"
         ],
         "summary": "Revoke a mandate",
-        "description": "Final. Payments under the mandate are refused afterwards.",
+        "description": "Unavailable on Robinhood WIF: the legacy Algorand mandate API is blocked with `503 migration_incomplete`. The separate EVM session-mandate contract is an undeployed, unaudited prototype, not a production feature.\n\nFinal. Payments under the mandate are refused afterwards.",
         "parameters": [
           {
             "name": "id",
@@ -794,8 +822,12 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/market": {
@@ -822,8 +854,13 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Disabled on Robinhood WIF: this route returns `503 marketplace_disabled`. WIF listings, creator earnings reconciliation, and payouts are not a supported service."
       }
     },
     "/v1/market/listings": {
@@ -832,7 +869,7 @@
           "Marketplace"
         ],
         "summary": "Create a listing",
-        "description": "Signed by the creator's wallet. Listings are reviewed before they go live.",
+        "description": "Disabled on Robinhood WIF: this route returns `503 marketplace_disabled`. WIF listings, creator earnings reconciliation, and payouts are not a supported service.\n\nSigned by the creator's wallet. Listings are reviewed before they go live.",
         "requestBody": {
           "required": true,
           "content": {
@@ -876,8 +913,12 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/market/creators/{address}/earnings": {
@@ -906,8 +947,13 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Disabled on Robinhood WIF: this route returns `503 marketplace_disabled`. WIF listings, creator earnings reconciliation, and payouts are not a supported service."
       }
     },
     "/health": {
@@ -967,7 +1013,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "Payment-Signature",
-        "description": "x402 payment payload (base64 JSON) signed by the payer's Algorand wallet for the amount in the 402 challenge. Use an x402 client or the Moltworld SDKs; you don't construct it by hand."
+        "description": "x402 v2 payment payload encoded for the `Payment-Signature` header. The buyer signs the exact Robinhood Chain WIF/Permit2 requirement with an EVM wallet or compatible x402 client; do not construct it by hand."
       }
     },
     "schemas": {
@@ -1029,7 +1075,7 @@
           "max_tokens": {
             "type": "integer",
             "minimum": 1,
-            "description": "Output budget. Defaults to 1024 (or the model limit if lower). You're charged for this budget and the unused part is paid back as a rebate."
+            "description": "Maximum output-token budget used to calculate the exact per-request quote."
           },
           "temperature": {
             "type": "number",
@@ -1047,8 +1093,18 @@
           "request_id": {
             "type": "string"
           },
-          "price_micro_usdc": {
-            "type": "integer"
+          "price_usd_micro": {
+            "type": "integer",
+            "description": "USD quote in micro-dollars; this is not a WIF token amount."
+          },
+          "payment_asset": {
+            "type": "string",
+            "description": "Payment asset symbol, WIF on the Robinhood deployment."
+          },
+          "payment_amount_atomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Exact ERC-20 base-unit amount paid."
           },
           "receipt_url": {
             "type": "string",
@@ -1240,8 +1296,7 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "example": "job_x1y2z3"
+            "type": "string"
           },
           "object": {
             "type": "string",
@@ -1273,7 +1328,10 @@
             "type": "string"
           },
           "modality": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "chat"
+            ]
           },
           "units": {
             "type": "object",
@@ -1283,15 +1341,23 @@
               },
               "maxOutputTokens": {
                 "type": "integer"
+              }
+            }
+          },
+          "costBasis": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "tokens"
+                ]
               },
-              "images": {
-                "type": "integer"
+              "inputPerMillionUsd": {
+                "type": "number"
               },
-              "characters": {
-                "type": "integer"
-              },
-              "seconds": {
-                "type": "integer"
+              "outputPerMillionUsd": {
+                "type": "number"
               }
             }
           },
@@ -1305,12 +1371,11 @@
             "type": "number"
           },
           "formattedPrice": {
-            "type": "string",
-            "example": "$0.005249"
+            "type": "string"
           },
           "microUsdc": {
             "type": "integer",
-            "example": 5249
+            "description": "Legacy field name for the USD quote in micro-dollars; it is not USDC and is not the token transfer amount."
           },
           "costSource": {
             "type": "string",
@@ -1320,6 +1385,47 @@
               "fal-live",
               "env-override"
             ]
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Exact WIF base-unit amount for the quoted request."
+          },
+          "asset": {
+            "type": "string",
+            "description": "WIF ERC-20 contract address."
+          },
+          "symbol": {
+            "type": "string",
+            "enum": [
+              "WIF"
+            ]
+          },
+          "decimals": {
+            "type": "integer",
+            "const": 18
+          },
+          "network": {
+            "type": "string",
+            "const": "eip155:4663"
+          },
+          "wifPrice": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "priceUsd": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "liquidityUsd": {
+                "type": "number"
+              }
+            }
           }
         }
       },
@@ -1341,8 +1447,7 @@
           "payment_flow": {
             "type": "string",
             "enum": [
-              "authorization",
-              "upfront"
+              "authorization"
             ]
           },
           "quote": {
@@ -1365,10 +1470,7 @@
           "modality": {
             "type": "string",
             "enum": [
-              "chat",
-              "image",
-              "voice",
-              "video"
+              "chat"
             ]
           },
           "provider": {
@@ -1384,7 +1486,10 @@
             "type": "string"
           },
           "payment_flow": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "authorization"
+            ]
           },
           "limits": {
             "type": "object"
@@ -1421,6 +1526,43 @@
           },
           "description": {
             "type": "string"
+          },
+          "from_price_request": {
+            "type": "object",
+            "properties": {
+              "estimatedInputTokens": {
+                "type": "integer"
+              },
+              "maxOutputTokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "cost_basis": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "inputPerMillionUsd": {
+                "type": "number"
+              },
+              "outputPerMillionUsd": {
+                "type": "number"
+              }
+            }
+          },
+          "cost_source": {
+            "type": "string"
+          },
+          "margin_percent": {
+            "type": "integer"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1530,7 +1672,8 @@
             "type": "string"
           },
           "amountMicro": {
-            "type": "integer"
+            "type": "integer",
+            "description": "USD quote in micro-dollars, not ERC-20 base units."
           },
           "txid": {
             "type": "string"
@@ -1563,7 +1706,8 @@
             "type": "string"
           },
           "rebateMicro": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Legacy Algorand rebate field; zero for the current Robinhood WIF chat flow."
           },
           "issuedAt": {
             "type": "integer"
@@ -1571,6 +1715,39 @@
           "sig": {
             "type": "string",
             "description": "base64url Ed25519 signature"
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Exact payment amount in the asset base units."
+          },
+          "assetDecimals": {
+            "type": "integer"
+          },
+          "assetSymbol": {
+            "type": "string"
+          },
+          "quotedUsdMicro": {
+            "type": "integer",
+            "description": "USD quote in micro-dollars."
+          },
+          "wifPrice": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "priceUsd": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "liquidityUsd": {
+                "type": "number"
+              }
+            }
           }
         }
       },
@@ -1606,10 +1783,12 @@
             "type": "boolean"
           },
           "amount": {
-            "type": "string"
+            "type": "string",
+            "description": "USD quote in readable dollars; inspect receipt.amountAtomic for exact token base units."
           },
           "rebate": {
-            "type": "string"
+            "type": "string",
+            "description": "Legacy rebate value; zero for the current Robinhood WIF chat flow."
           },
           "txid": {
             "type": [
@@ -1627,7 +1806,8 @@
             "type": [
               "object",
               "null"
-            ]
+            ],
+            "description": "Legacy refund metadata; the current WIF deployment does not run automatic refunds."
           }
         }
       },
@@ -2008,7 +2188,8 @@
             "type": "string"
           },
           "usdc_asset_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Legacy Algorand field; it is not the Robinhood WIF payment asset."
           },
           "pay_to": {
             "type": "string"
@@ -2027,6 +2208,63 @@
           },
           "payouts_enabled": {
             "type": "boolean"
+          },
+          "product": {
+            "type": "string"
+          },
+          "public_domain": {
+            "type": "string",
+            "format": "uri"
+          },
+          "payment_chain": {
+            "type": "string",
+            "enum": [
+              "robinhood"
+            ]
+          },
+          "payment_asset": {
+            "type": "string",
+            "description": "WIF ERC-20 contract address."
+          },
+          "payment_symbol": {
+            "type": "string",
+            "enum": [
+              "WIF"
+            ]
+          },
+          "payment_decimals": {
+            "type": "integer",
+            "const": 18
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mock_providers": {
+            "type": "boolean"
+          },
+          "models_by_modality": {
+            "type": "object",
+            "properties": {
+              "chat": {
+                "type": "integer"
+              },
+              "image": {
+                "type": "integer"
+              },
+              "voice": {
+                "type": "integer"
+              },
+              "video": {
+                "type": "integer"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -2042,7 +2280,7 @@
           "facilitator": {
             "type": "object",
             "nullable": true,
-            "description": "The x402 facilitator's record for this merchant on this network: volume, settles, success rate, payers, first and last settlement, network mix (networks), every settled endpoint (endpoints), and listing status. Null when the facilitator is unreachable and nothing is cached."
+            "description": "Null on the Robinhood WIF deployment, where public settlement statistics are read from the gateway ledger. A facilitator statistics object is retained for the legacy Algorand deployment."
           },
           "recent_settlements": {
             "type": "array",

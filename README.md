@@ -2,7 +2,7 @@
 
 Moltworld is an x402 pay-per-request gateway for AI services. The current WIF payment rail uses **WIF (World Is Flat)** on **Robinhood Chain**; the network reference is technical and does not imply affiliation or endorsement.
 
-> **Current status:** The live WIF checkout supports chat only. User-wallet signatures work for direct calls; external mobile-wallet connectivity requires a Reown project ID. A Solidity EIP-1271 mandate and JavaScript session signer exist as an experimental prototype; local Ganache tests cover arm, signature policy, allowance decrement, and revoke, but no contract is deployed by the service and there is no website setup wizard or independent audit. This local simulated test is not a real Permit2/facilitator/Robinhood transaction. Do not fund it with valuable balances. The WIF marketplace code is opt-in and disabled by default; creator credits require manual reconciliation and are not an escrow or automated payout service. Python/local MCP EOA auto-payment is development-only and is not a user-authorized on-chain mandate. Image, voice, video, and automatic WIF refunds are not enabled.
+> **Current status:** The live WIF checkout supports chat only. One user-authorized Robinhood Chain WIF payment has been confirmed with its AI response and signed receipt; the user signed in their own wallet, and the gateway never held a wallet key. External mobile-wallet connectivity requires a Reown project ID. A Solidity EIP-1271 mandate and JavaScript session signer exist as an experimental prototype; local Ganache tests cover arm, signature policy, allowance decrement, and revoke, but no contract is deployed by the service and there is no website setup wizard or independent audit. This local test is not a real Permit2/facilitator/Robinhood transaction. Do not fund it with valuable balances. The WIF marketplace code is opt-in and disabled by default; creator credits require manual reconciliation and are not an escrow or automated payout service. Python/local MCP EOA auto-payment is development-only and is not a user-authorized on-chain mandate. Image, voice, video, and automatic WIF refunds are not enabled.
 
 ## Payment addresses
 
@@ -44,7 +44,7 @@ The automated tests use deterministic test fixtures and do not broadcast a block
 
 ## Public deployment
 
-The public website and API origin is [motoworld-wif.vercel.app](https://motoworld-wif.vercel.app). Vercel proxies requests to the Render Hono service at `https://motoworld-wif.onrender.com`; the Vercel function also proxies paths handled by the function itself (including the root) to that same fixed Render origin. Render holds the database connection and provider/receipt secrets. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app` so x402 challenges and canonical links use the public origin. Vercel does not need the database URL or provider key.
+The public website and API origin is [motoworld-wif.vercel.app](https://motoworld-wif.vercel.app). WIF documentation is hosted at [algorand-54fd52b3.mintlify.app](https://algorand-54fd52b3.mintlify.app). Vercel proxies requests to the Render Hono service at `https://motoworld-wif.onrender.com`; the Vercel function also proxies paths handled by the function itself (including the root) to that same fixed Render origin. Render holds the database connection and provider/receipt secrets. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app` so x402 challenges and canonical links use the public origin. Vercel does not need the database URL or provider key.
 
 See [`.env.example`](.env.example) for the service settings. Production requires `NODE_ENV=production`, `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, the public `EVM_ADDRESS`, WIF contract, a real OpenAI or OpenRouter key, PostgreSQL, a receipt signing seed, and `MOCK_PROVIDERS=false` / `SKIP_UPSTREAM_VERIFICATION=false`. Keep secrets in Render, not Git. The Render free service can sleep when idle; its first request may take time to wake.
 
@@ -53,7 +53,7 @@ See [`.env.example`](.env.example) for the service settings. Production requires
 - WIF settlement/refunds for image, voice, and video calls.
 - WIF marketplace is implemented only as a disabled-by-default stage: EIP-712 listing verification and exact WIF creator credits exist, but payout verification/reconciliation and operational terms still need completion before it can be enabled.
 - Independent review and a real facilitator/Robinhood test for the EIP-1271 mandate prototype, plus a user-wallet setup/revoke flow before it can be considered a live feature.
-- A real mainnet wallet payment and settlement/receipt check. The current validation has not signed or broadcast a user payment.
+- Additional repeat-use evidence across users or agents is still needed to establish a measured hackathon flywheel; the first user-authorized WIF payment and response have been verified.
 
 The code deliberately blocks legacy-only payment actions on the WIF rail rather than silently routing them through Algorand. No EVM spending mandate has been deployed or audited; local EOA budgets are not a substitute.
 

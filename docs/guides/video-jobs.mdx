@@ -1,10 +1,10 @@
 ---
 title: "Historical video jobs"
-description: "Inspect video jobs submitted before video generation was removed."
+description: "Review the retained video-job routes and understand why new video generation is unavailable on the WIF deployment."
 ---
 
-Video generation is no longer available. The fal.ai models were removed, and OpenAI retired the Sora Videos API on 24 September 2026. Removed model endpoints return `404` before payment.
+Video generation is not available on the Robinhood WIF deployment. WIF checkout currently supports chat only, and this page describes historical job records rather than a live generation service.
 
-Existing job and receipt records remain available through `GET /v1/jobs/{id}` and `GET /v1/receipts/{request_id}`. These endpoints do not submit new generations.
+Existing job and receipt records may remain available through `GET /v1/jobs/{id}` and `GET /v1/receipts/{request_id}`. The job route is retained for historical records and is deprecated for WIF use; it does not submit new generations.
 
-Use `GET /v1/models` for the current chat, image and voice catalog.
+Use `GET /v1/models` for the current chat catalog. Image and voice calls are not enabled on WIF.

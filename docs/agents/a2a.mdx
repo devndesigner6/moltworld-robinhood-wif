@@ -1,29 +1,16 @@
 ---
-title: "A2A"
-description: "Find Moltworld models from agents that use the Agent2Agent protocol."
+title: "A2A (legacy)"
+description: "This page archives the original Moltworld A2A endpoint. It is not enabled on Robinhood WIF; use the remote MCP for current model discovery and quotes."
 ---
 
-Moltworld runs an A2A agent that answers catalog questions. It returns models with their paid endpoints and prices, so the calling agent can pay through x402.
+<Warning>
+The A2A agent endpoint below belongs to the original deployment and is not a supported WIF integration. For Robinhood WIF model discovery and quotes, use the [remote MCP server](/agents/mcp). Paid calls still require a caller-side x402 signature.
+</Warning>
 
-- Agent card: [`/.well-known/agent-card.json`](https://moltworld.xyz/.well-known/agent-card.json)
-- JSON-RPC endpoint: `POST https://moltworld.xyz/a2a`
-- Skill: `find_models`
+The original Moltworld deployment exposed an A2A agent for catalog questions. These links and examples are retained as historical Algorand-era documentation and should not be used as a live WIF endpoint.
 
-```bash
-curl -s https://moltworld.xyz/a2a -H 'Content-Type: application/json' -d '{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "SendMessage",
-  "params": {
-    "message": {
-      "messageId": "m1",
-      "role": "ROLE_USER",
-      "parts": [{ "text": "Which image models are available?", "mediaType": "text/plain" }]
-    }
-  }
-}'
-```
+- Legacy agent card: [`/.well-known/agent-card.json`](https://moltworld.xyz/.well-known/agent-card.json)
+- Legacy JSON-RPC endpoint: `POST https://moltworld.xyz/a2a`
+- Legacy skill: `find_models`
 
-The agent speaks A2A protocol version 1.0. Send `A2A-Version: 1.0` or leave the header out.
-
-Streaming is not supported. The A2A agent finds models; the paid calls go to the model endpoints over x402.
+The historical endpoint used A2A protocol version 1.0. It did not itself sign or pay for a model call; those calls went to a separate x402 endpoint.
