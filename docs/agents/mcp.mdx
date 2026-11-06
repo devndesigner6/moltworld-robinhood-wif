@@ -16,7 +16,7 @@ The live WIF model surface is chat-only. The EIP-1271 contract and signer are an
 
 ## Local development EOA server
 
-The local WIF payer is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The safer user-approved path is the remote relay below.
+The direct local EOA mode below is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The separate EIP-1271 session-mandate prototype is described below; it also remains undeployed, unaudited, and not production-ready. Until that prototype has been independently reviewed and deployed through a user-wallet flow, use the remote caller-signed relay below for live requests.
 
 Generate a dedicated disposable EVM key. The command prints only its derived address; the secret is saved with mode `0600`.
 
