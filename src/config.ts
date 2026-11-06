@@ -120,7 +120,7 @@ export const config: GatewayConfig = {
   port: parseInt(process.env.PORT || "3000", 10),
   paymentChain,
   publicDomain: (process.env.PUBLIC_DOMAIN?.trim() || (paymentChain === "robinhood" ? process.env.RENDER_EXTERNAL_URL?.trim() || vercelPublicUrl || "http://localhost:3000" : "https://moltworld.xyz")).replace(/\/+$/, ""),
-  docsUrl: (process.env.DOCS_URL || "https://docs.moltworld.xyz").replace(/\/+$/, ""),
+  docsUrl: (process.env.DOCS_URL || "https://algorand-54fd52b3.mintlify.app").replace(/\/+$/, ""),
   facilitatorUrl: process.env.FACILITATOR_URL || (paymentChain === "robinhood" ? "https://x402.primer.systems" : "https://facilitator.goplausible.xyz"),
   facilitatorMerchantId: process.env.FACILITATOR_MERCHANT_ID?.trim() || "414f1538ce0d6de4",
   isTest,

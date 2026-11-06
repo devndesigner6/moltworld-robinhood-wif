@@ -1,39 +1,62 @@
 ---
-title: "Moltworld"
-description: "Chat models paid per request in WIF on Robinhood Chain through x402."
+title: "Moltworld: WIF-paid AI chat"
+description: "Make AI chat calls paid per request in WIF on Robinhood Chain, with exact quotes, wallet-authorized x402 settlement, and signed receipts."
+keywords:
+  - "WIF"
+  - "Robinhood Chain"
+  - "x402"
+  - "AI chat"
+  - "MCP"
+  - "payment receipts"
 ---
 
-Moltworld is an HTTP API for chat models. On the current WIF deployment, each chat request is priced from its exact body and authorized per call in WIF with an EIP-1193 wallet. Browser users can connect an injected wallet or, when the public Reown project ID is configured, WalletConnect on mobile. Successful responses include a signed receipt.
+Moltworld is an HTTP chat API where each eligible request is quoted and paid individually in WIF on Robinhood Chain. A user-controlled wallet authorizes each payment through x402, and successful responses include a signed receipt.
 
 <CardGroup cols={2}>
-  <Card title="WIF Quickstart" icon="rocket" href="/quickstart">
-    Connect a wallet or integrate the chat-only x402 flow.
+  <Card title="Get started" icon="rocket" href="/quickstart">
+    Connect a wallet or make your first chat request through x402.
   </Card>
-  <Card title="How payment works" icon="coins" href="/concepts/how-payment-works">
-    The quote, 402 challenge, per-call wallet authorization, and receipt.
+  <Card title="Open the Playground" icon="play" href="https://motoworld-wif.vercel.app/playground">
+    Try a live chat request and review its WIF payment challenge.
   </Card>
   <Card title="Connect an agent" icon="robot" href="/agents/mcp">
-    Caller-signed remote MCP discovery and the current WIF limits.
+    Use keyless remote MCP for discovery, quotes, and caller-signed chat relay.
   </Card>
   <Card title="API reference" icon="code" href="/api-reference/introduction">
-    Current endpoint conventions and the live chat surface.
+    See the live chat endpoint, free quote, receipt, and service endpoints.
   </Card>
 </CardGroup>
 
-## What is live on Robinhood
+## The live payment loop
 
-- **A quote before payment.** `POST /v1/quote` returns the exact USD quote and quote-time WIF conversion for an eligible chat body.
-- **Per-call wallet authorization.** The 402 challenge names Robinhood Chain (`eip155:4663`), WIF, the recipient, and the exact amount. The user's EIP-1193 wallet authorizes each call.
-- **Permit2-aware EVM payments.** First use may require a separate exact WIF approval to Permit2 and native ETH for gas.
-- **A receipt you can check.** Each successful paid response carries a signed `Moltworld-Receipt` tied to the request, response, WIF amount, and settlement transaction.
-- **A deliberately small surface.** Image, voice, video, marketplace, automatic refunds, and agent mandates are not enabled on Robinhood.
+<Steps>
+  <Step title="Discover a chat model">
+    Read `GET /v1/models` or use the remote MCP server to find enabled chat models.
+  </Step>
+  <Step title="Quote the exact request">
+    Submit the chat body to `POST /v1/quote`. The quote is free and is tied to that request shape.
+  </Step>
+  <Step title="Authorize one WIF payment">
+    The chat endpoint returns an x402 `402 Payment Required` challenge with Robinhood Chain (`eip155:4663`), the WIF token, recipient, and exact amount. The user reviews and authorizes each call in their wallet.
+  </Step>
+  <Step title="Receive an answer and receipt">
+    The gateway settles a valid payment, calls the selected model, and returns the AI response with a signed receipt that records the request and settlement.
+  </Step>
+</Steps>
 
-## Base URL
+A user-authorized mainnet WIF payment has been verified end-to-end with an AI response and settlement receipt. The remote MCP server remains keyless: it can relay a caller-signed payment, but it cannot approve, sign, or pay for the caller.
 
-```
-https://motoworld-wif.vercel.app
-```
+## Why return
 
-Machine-readable discovery is at [`/llms.txt`](https://motoworld-wif.vercel.app/llms.txt), [`/.well-known/x402`](https://motoworld-wif.vercel.app/.well-known/x402), and [`/v1/models`](https://motoworld-wif.vercel.app/v1/models).
+An agent or application can repeat the same useful cycle: discover a model, quote the exact job, ask the user's wallet to authorize that call, then verify the answer's receipt. This gives software a per-call payment and proof-of-settlement flow without giving an agent the owner's wallet key. Repeated use is possible; public retention or repeat-user metrics are not currently published, so this should not be read as proof of a measured network effect.
 
-> **Legacy Algorand documentation:** The mandate, marketplace, media, and USDC examples retained elsewhere in these docs describe the isolated legacy Algorand deployment only. They are not supported by the Robinhood WIF rail.
+## What is not live on WIF
+
+The Robinhood deployment is chat-only. Autonomous agent mandates, marketplace listings and creator payouts, image or speech generation, video jobs, and automatic WIF refunds are not enabled. The repository contains a mandate prototype and marketplace groundwork, but neither is a production feature. See [Spending mandates](/products/mandates) and [Marketplace](/products/marketplace) for their current status and legacy documentation.
+
+## Links
+
+- **Website and API:** [motoworld-wif.vercel.app](https://motoworld-wif.vercel.app)
+- **Quickstart:** [Connect a wallet and make a paid request](/quickstart)
+- **Machine-readable discovery:** [`/llms.txt`](https://motoworld-wif.vercel.app/llms.txt)
+- **Source code:** [Moltworld x402 Gateway on GitHub](https://github.com/devndesigner6/moltworld-x402-gateway)

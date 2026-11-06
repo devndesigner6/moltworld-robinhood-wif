@@ -1,52 +1,39 @@
 ---
 title: "OpenClaw"
-description: "Add Moltworld to an OpenClaw agent."
+description: "Connect OpenClaw to Moltworld's remote MCP for WIF chat discovery and quotes. Paid requests need a caller-side x402 signature; MCP never holds a wallet key."
 ---
-> **Rail note:** Robinhood production is chat-only WIF with per-call wallet authorization. The mandate and image examples below are legacy Algorand examples and are not enabled on Robinhood.
-<Note>
-Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
-</Note>
 
+Connect OpenClaw to Moltworld's remote MCP server to discover the live chat catalog and request WIF quotes. The hosted server is keyless and does not sign or pay for you.
 
-OpenClaw loads MCP servers from the `mcp.servers` section of its gateway config. Add the local server to let the agent pay within a mandate, and the remote server for the catalog.
+## Connect over MCP
+
+OpenClaw loads MCP servers from the `mcp.servers` section of its gateway configuration. Add the Streamable HTTP server:
 
 ```json
 {
   "mcp": {
     "servers": {
       "moltworld": {
-        "command": "npx",
-        "args": ["-y", "-p", "moltworld-sdk", "moltworld-mcp"],
-        "env": {
-          "MOLTWORLD_MANDATE": "<credential>",
-          "MOLTWORLD_MAX_PER_REQUEST_USD": "0.25",
-          "MOLTWORLD_BUDGET_USD": "5"
-        }
-      },
-      "moltworld-remote": {
         "transport": "streamable-http",
-        "url": "https://moltworld.xyz/mcp"
+        "url": "https://motoworld-wif.vercel.app/mcp"
       }
     }
   }
 }
 ```
 
-Restart the gateway after you change the config.
+Restart the gateway after you change the config. The Moltworld tools should appear in the agent's available tool list.
 
-<Note>
-Config keys can change between OpenClaw releases. If a field is rejected, check the MCP section of the OpenClaw docs for your version.
-</Note>
+<Warning>
+The remote MCP server supports discovery and quotes without a wallet. A paid chat call requires a valid caller-generated x402 `Payment-Signature`. OpenClaw does not receive an autonomous spending mandate from this connection. Never put a wallet seed phrase or master private key in the MCP configuration.
+</Warning>
 
 ## Try it
 
-Ask the agent something it can't do with its own model:
+Ask OpenClaw to list available chat models or get a free quote for a chat request. Review the quoted model and amount before authorizing a paid call.
 
-> Generate a landscape product image with gpt-image-1.5 and tell me what it cost.
-
-The agent calls `moltworld_models`, then `moltworld_quote`, then `moltworld_image`, and reports the price from the receipt.
+For the exact remote tool inputs and payment handoff, see [MCP and agents](/agents/mcp). For a direct user-wallet call, use the [Playground](https://motoworld-wif.vercel.app/playground).
 
 ## Limits
 
-- The mandate's per-call limit and daily cap apply on top of `MOLTWORLD_MAX_PER_REQUEST_USD` and `MOLTWORLD_BUDGET_USD`.
-- To stop the agent spending, revoke the mandate. It takes effect at once.
+The WIF deployment currently supports chat only. Image, voice, video, marketplace payouts, and autonomous mandates are not enabled.
