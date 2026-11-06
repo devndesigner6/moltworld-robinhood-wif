@@ -8,11 +8,11 @@ Moltworld works with any agent that speaks the [Model Context Protocol](https://
 | | Remote server | Local server |
 | --- | --- | --- |
 | Address | `https://motoworld-wif.vercel.app/mcp` (streamable HTTP) | Repository build from `sdk/js/src/mcp.ts` (stdio; mandate path is not an npm release yet) |
-| Holds a wallet | No | A delegated session key; the experimental EIP-1271 mandate is read and enforced on-chain |
-| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | Use x402 WIF payments from a compatible stdio-MCP host after an owner arms a mandate |
+| Holds a wallet | No | A dedicated development EOA or prototype session key; neither is a production user mandate |
+| The agent can | Discover chat models, request quotes, relay caller-signed chat, and read spend metadata | Run experimental local signer code only; not production-ready for unattended WIF payments |
 | Best for | A separate wallet service or caller approval | Agent-hosted signing; the owner's wallet key is never given to the agent |
 
-The live WIF model surface is chat-only. The EIP-1271 contract and signer are an unaudited prototype in this repository; no mandate contract is deployed by the service, and no website setup wizard is live. Do not fund or use the prototype for valuable balances before independent review. Image, speech, video, automatic refunds, and marketplace payments are not enabled. The remote server never holds a wallet or signs; only the local stdio client can use a user-created delegated session key.
+The live WIF model surface is chat-only. The remote MCP server is keyless and supports model discovery, quotes, caller-signed chat relay, and spend metadata; it cannot initiate or pay autonomously. The EIP-1271 contract and signer are an experimental, undeployed, unaudited prototype with no website setup or revoke flow and no real Robinhood Permit2/facilitator validation. Do not fund or use it for valuable balances. Image, speech, video, automatic refunds, and marketplace payments are not enabled on WIF.
 
 ## Local development EOA server
 
@@ -48,7 +48,7 @@ Configure the local server with:
 
 The SDK checks the WIF allowance to the canonical Permit2 contract with read-only RPC before signing. If it is insufficient, it refuses without sending an approval transaction. Approve the exact required WIF amount to Permit2 explicitly first; the approval transaction needs native ETH for gas.
 
-Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). Tools include `moltworld_models`, `moltworld_quote`, `moltworld_chat`, `moltworld_spend`, and gated marketplace tools. Marketplace calls return unavailable until the operator enables that still-incomplete surface.
+Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). The live remote MCP supports model discovery, quote requests, caller-signed chat relay, and spend metadata. Marketplace routes are disabled on WIF and are not a usable listing or payout service.
 
 ## Experimental on-chain WIF mandate
 
@@ -83,15 +83,19 @@ npx -y -p moltworld-sdk moltworld-mcp
 { "mcpServers": { "moltworld": { "type": "http", "url": "https://motoworld-wif.vercel.app/mcp" } } }
 ```
 
-In WIF mode the remote server exposes `list_models`, `quote_request`, `chat`, `spend`, and caller-signed marketplace relay tools. Marketplace routes are disabled by default and return unavailable before payment. The `chat` and marketplace tools relay the caller's `Payment-Signature`; the remote server never holds a key, signs, approves Permit2, or pays. Remote spend information describes the payment rail; it is not an on-chain cap.
+In WIF mode the remote server exposes model discovery, quote requests, chat relay, and spend metadata. Marketplace relay routes are staged but disabled and do not provide WIF listings or creator payouts. The server never holds a key, signs, approves Permit2, or pays. Remote spend information describes the payment rail; it is not an on-chain cap.
 
 The legacy Algorand remote surface continues to expose its 402, signed-request, receipt, and job helpers.
 
 ## Framework guides
 
 <CardGroup cols={2}>
-  <Card title="OpenClaw" href="/agents/openclaw" />
-  <Card title="Hermes Agent" href="/agents/hermes" />
-  <Card title="Claude Code" href="/agents/claude-code" />
-  <Card title="A2A" href="/agents/a2a" />
+  <Card title="OpenClaw" href="/agents/openclaw">
+  </Card>
+  <Card title="Hermes Agent" href="/agents/hermes">
+  </Card>
+  <Card title="Claude Code" href="/agents/claude-code">
+  </Card>
+  <Card title="A2A" href="/agents/a2a">
+  </Card>
 </CardGroup>

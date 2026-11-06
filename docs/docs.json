@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Moltworld",
-  "description": "Chat models paid per request in WIF on Robinhood Chain through x402; legacy Algorand docs are labeled separately.",
+  "description": "Per-call AI chat payments in WIF on Robinhood Chain, with x402 quotes, wallet-authorized settlement, and signed receipts.",
   "colors": {
     "primary": "#0E9F66",
     "light": "#3DDC97",
@@ -11,7 +11,7 @@
   "logo": {
     "light": "/logo/logo.png",
     "dark": "/logo/logo.png",
-    "href": "https://moltworld.xyz"
+    "href": "https://motoworld-wif.vercel.app"
   },
   "favicon": "/favicon.png",
   "appearance": {
@@ -20,18 +20,18 @@
   "navbar": {
     "links": [
       {
-        "label": "Models",
-        "href": "https://moltworld.xyz/models"
+        "href": "https://motoworld-wif.vercel.app",
+        "label": "Website"
       },
       {
         "label": "GitHub",
-        "href": "https://github.com/hackcat29/moltworld-x402"
+        "href": "https://github.com/devndesigner6/moltworld-x402-gateway"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Playground",
-      "href": "https://moltworld.xyz/playground"
+      "label": "Open Playground",
+      "href": "https://motoworld-wif.vercel.app/playground"
     }
   },
   "navigation": {
@@ -172,8 +172,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/hackcat29/moltworld-x402",
-      "website": "https://moltworld.xyz"
+      "github": "https://github.com/devndesigner6/moltworld-x402-gateway",
+      "website": "https://motoworld-wif.vercel.app"
     }
   },
   "seo": {
