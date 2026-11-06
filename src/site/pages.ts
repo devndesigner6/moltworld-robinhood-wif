@@ -342,7 +342,7 @@ function home(c: Context) {
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <h1 data-split>Every AI model, <em>paid per request.</em></h1>
+            <h1 data-split>Every AI chat model, <em>paid per request.</em></h1>
             <div class="cta-row" data-reveal style="--d:4">${btn("/playground", "Open Playground")}<span class="cmd"><b>npm i moltworld-sdk</b><button type="button" class="icon-btn" data-copy="npm i moltworld-sdk" aria-label="Copy install command">${icon("copy", 15)}</button></span></div>
           </div>
           <div class="hero-visual" data-clip><div class="world-fallback">${WORLD_FALLBACK}</div><canvas id="world" role="img" aria-label="Globe of payments settling between agents and models. Drag to spin, tap to send a request."></canvas></div>
