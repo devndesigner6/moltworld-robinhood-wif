@@ -14,4 +14,4 @@ Moltworld's A2A JSON-RPC endpoint on Robinhood Chain is for model discovery only
   The USD reference price is not a WIF token amount. Exact WIF payment depends on the request body. Use `POST /v1/quote` for a free exact quote, then treat the chat endpoint's HTTP `402` `Payment-Required` challenge as authoritative. A paid call still needs caller-authorized x402 payment.
 </Note>
 
-For paid agent calls, use the [remote MCP server](/agents/mcp) to relay a caller-signed request, or use a compatible client that can authorize the x402 challenge. WIF image, voice, video, marketplace payouts, and autonomous mandate settlement are not enabled and verified on the live rail.
+For paid agent calls, use the [remote MCP server](/agents/mcp) to relay a caller-signed request, or use a compatible client that can authorize the x402 challenge. Image, voice, video, and marketplace payouts are not enabled on WIF. The on-chain mandate setup is experimental, and autonomous settlement has not been verified.
