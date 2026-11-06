@@ -22,7 +22,8 @@ import { encodeReceiptHeader, receiptSigner, sha256Hex } from "../receipts/index
 import { usdcBalanceMicro } from "../chain/algod.js";
 import { coordination } from "./coordination.js";
 import { getPaymentState, PaymentState, setPaymentState, stateFromTransport } from "./state.js";
-import { evmPayerFromPayload, evmPaymentIdFromHeader, evmPaymentIdFromPayload } from "./evm-identity.js";
+import { evmAcceptedFromHeader, evmPayerFromPayload, evmPaymentIdFromHeader, evmPaymentIdFromPayload } from "./evm-identity.js";
+import { getWifQuoteChallenge, matchesWifQuoteRequirement, rememberWifQuoteChallenge, WIF_CHAT_MAX_TIMEOUT_SECONDS } from "./wif-challenges.js";
 import { creatorShareAtomic } from "./marketplace-evm.js";
 import {
   logicSigProgramFromPayload,
@@ -99,7 +100,8 @@ export const prepareModelRequest: MiddlewareHandler = async (c, next) => {
   }
 
   const rawBody = new Uint8Array(await c.req.arrayBuffer());
-  const hasPayment = !!paymentHeaderOf(c);
+  const paymentHeader = paymentHeaderOf(c);
+  const hasPayment = !!paymentHeader;
   let request;
   if (rawBody.length === 0 && !hasPayment) {
     // A bare probe (e.g. a discovery crawler) gets a 402 priced for a reference request.
@@ -117,14 +119,41 @@ export const prepareModelRequest: MiddlewareHandler = async (c, next) => {
   }
 
   const quote = quoteRequest(model, request);
+  const requestSha256 = sha256Hex(rawBody);
   let wifPrice;
   let amountAtomic = String(quote.microUsdc);
+  let quoteId: string | undefined;
   if (config.paymentChain === "robinhood") {
-    try {
-      wifPrice = await getWifPriceSnapshot();
-      amountAtomic = usdMicroToTokenAtomic(quote.microUsdc, BigInt(wifPrice.effectivePriceUsdScaled18), config.paymentAssetDecimals);
-    } catch (err: any) {
-      return apiError(c, 503, "wif_price_unavailable", `Cannot safely quote WIF right now: ${err?.message ?? String(err)}. No payment was taken.`);
+    if (hasPayment) {
+      const accepted = evmAcceptedFromHeader(paymentHeader!);
+      const requestedQuoteId = typeof accepted?.extra?.quoteId === "string" ? accepted.extra.quoteId : "";
+      const challenge = requestedQuoteId
+        ? getWifQuoteChallenge(requestedQuoteId, c.req.path, requestSha256)
+        : undefined;
+      if (!challenge) {
+        return apiError(c, 409, "wif_quote_expired", "The signed WIF quote is expired or unavailable for this exact request. No payment was taken; run the request again for a fresh quote.");
+      }
+      if (challenge.amountMicro !== quote.microUsdc || !matchesWifQuoteRequirement(accepted, challenge, {
+        network: config.networkCaip2,
+        asset: config.paymentAssetAddress,
+        payTo: config.payToAddress,
+        symbol: config.paymentAssetSymbol,
+        decimals: config.paymentAssetDecimals,
+        maxTimeoutSeconds: WIF_CHAT_MAX_TIMEOUT_SECONDS,
+      })) {
+        return apiError(c, 409, "wif_quote_mismatch", "The signed WIF terms do not match the server-issued quote for this request. No payment was taken; run the request again for a fresh quote.");
+      }
+      wifPrice = challenge.wifPrice;
+      amountAtomic = challenge.amountAtomic;
+      quoteId = challenge.quoteId;
+    } else {
+      try {
+        wifPrice = await getWifPriceSnapshot();
+        amountAtomic = usdMicroToTokenAtomic(quote.microUsdc, BigInt(wifPrice.effectivePriceUsdScaled18), config.paymentAssetDecimals);
+        quoteId = newId("wq");
+      } catch (err: any) {
+        return apiError(c, 503, "wif_price_unavailable", `Cannot safely quote WIF right now: ${err?.message ?? String(err)}. No payment was taken.`);
+      }
     }
   }
   const state: PaymentState = {
@@ -134,16 +163,28 @@ export const prepareModelRequest: MiddlewareHandler = async (c, next) => {
     model,
     request,
     rawBody,
-    requestSha256: sha256Hex(rawBody),
+    requestSha256,
     quote,
     amountMicro: quote.microUsdc,
     amountAtomic,
     wifPrice,
+    quoteId,
     paymentFlow: paymentFlowFor(model),
   };
   setPaymentState(c, state);
   c.header("Moltworld-Quote", quote.formattedPrice);
-  return next();
+  await next();
+  if (!hasPayment && quoteId && wifPrice && c.res.status === 402 && c.res.headers.has("payment-required")) {
+    rememberWifQuoteChallenge({
+      quoteId,
+      route: c.req.path,
+      requestSha256,
+      amountMicro: quote.microUsdc,
+      amountAtomic,
+      wifPrice,
+    });
+  }
+  return;
 };
 
 /** Dynamic x402 price: the amount computed by prepareModelRequest/prepareMarketRequest. */
@@ -161,6 +202,7 @@ export function priceFromState(ctx: any) {
           quotedUsdMicro: state.amountMicro,
           wifPriceUsdScaled18: state.wifPrice?.effectivePriceUsdScaled18,
           wifSpotPriceUsd: state.wifPrice?.priceUsd,
+          quoteId: state.quoteId,
         }
       : {},
   };

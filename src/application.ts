@@ -151,15 +151,14 @@ export function createApp(): { app: Hono; init: () => Promise<void> } {
   app.get("/og.png", png(getOgBytes()));
   app.get("/logo.svg", (c) => c.body(LOGO_SVG, 200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" }));
 
-  // Paid endpoints. Order matters: validate + quote before anything else, so no
-  // one pays for a request that cannot succeed; commerce wraps the payment step
-  // so it sees the facilitator's results and the final response.
+  // Paid endpoints. Completed payment replays are returned before quote expiry
+  // checks; new calls still validate and quote before x402 can accept payment.
   app.use("/v1/models/:model/*", rateLimit("paid", 600));
   app.use("/v1/market/:slug/call", rateLimit("paid", 600));
-  app.use("/v1/models/:model/*", prepareModelRequest);
-  app.use("/v1/market/:slug/call", prepareMarketRequest);
   app.use("/v1/models/:model/*", commerceMiddleware);
   app.use("/v1/market/:slug/call", commerceMiddleware);
+  app.use("/v1/models/:model/*", prepareModelRequest);
+  app.use("/v1/market/:slug/call", prepareMarketRequest);
   app.use(paymentMiddleware(routes, server, undefined, undefined, false));
   app.post("/v1/models/:model/chat/completions", handleModelRequest);
   app.post("/v1/models/:model/images/generations", handleModelRequest);

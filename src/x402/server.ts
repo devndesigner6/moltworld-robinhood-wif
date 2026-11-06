@@ -11,6 +11,7 @@ import {
 } from "../config.js";
 import { ModelRegistry, defaultModelRegistry, getModelEndpoint, getModelDiscoveryDescription, ModelDefinition } from "../models/registry.js";
 import { paymentFlowFor, priceFromState, registerPaymentHooks } from "../payments/gateway.js";
+import { WIF_CHAT_MAX_TIMEOUT_SECONDS } from "../payments/wif-challenges.js";
 
 export function createX402Server(registry: ModelRegistry = defaultModelRegistry): {
   server: x402ResourceServer;
@@ -133,7 +134,7 @@ export function buildX402Routes(registry: ModelRegistry): RoutesConfig {
         price: priceFromState,
         network: config.networkCaip2,
         payTo: config.payToAddress,
-        maxTimeoutSeconds: model.modality === "chat" ? 120 : 300,
+        maxTimeoutSeconds: model.modality === "chat" ? WIF_CHAT_MAX_TIMEOUT_SECONDS : 300,
         extra: { tag: "x402-global-challenge", ...(flow === "upfront" ? { paymentFlow: "upfront" } : {}) },
       },
       resource: `${config.publicDomain}${getModelEndpoint(model)}`,

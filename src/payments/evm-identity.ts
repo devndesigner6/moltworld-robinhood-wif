@@ -20,6 +20,17 @@ export function evmPaymentIdFromPayload(payload: any): string | null {
   return crypto.createHash("sha256").update(canonicalJson(payload)).digest("hex");
 }
 
+/** Extracts the x402 v2 accepted requirement from the base64 Payment-Signature envelope. */
+export function evmAcceptedFromHeader(header: string): any | null {
+  try {
+    const decoded = Buffer.from(header, "base64").toString("utf8");
+    const accepted = JSON.parse(decoded)?.accepted;
+    return accepted && typeof accepted === "object" ? accepted : null;
+  } catch {
+    return null;
+  }
+}
+
 export function evmPaymentIdFromHeader(header: string): string | null {
   try {
     const decoded = Buffer.from(header, "base64").toString("utf8");

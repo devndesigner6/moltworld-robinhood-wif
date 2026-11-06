@@ -26,6 +26,8 @@ export interface PaymentState {
   /** Exact ERC-20 base-unit amount requested by x402; never convert through JS Number. */
   amountAtomic: string;
   wifPrice?: WifPriceSnapshot;
+  /** Server-issued WIF quote ID echoed inside the signed x402 accepted requirement. */
+  quoteId?: string;
   paymentFlow: "authorization" | "upfront";
   paymentHash?: string;
   payer?: string;
