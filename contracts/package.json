@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "compile": "npx --yes solc@0.8.30 --base-path . --include-path . --bin --abi src/WifPermit2SessionMandate.sol -o /tmp/wif-permit2-solc",
+    "compile": "node scripts/build-artifact.mjs",
     "test:typed-data": "node scripts/typed-data-check.mjs",
     "test:stateful": "node scripts/local-session-mandate-test.mjs"
   }

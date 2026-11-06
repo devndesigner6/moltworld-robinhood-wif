@@ -13,6 +13,7 @@ pragma solidity ^0.8.24;
 ///     uint256 deadline,
 ///     address to,
 ///     uint256 validAfter,
+///     uint256 sessionEpoch,
 ///     bytes sessionSignature
 /// )
 ///
@@ -34,6 +35,14 @@ contract WifPermit2SessionMandate {
     bytes32 internal constant PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH = keccak256(
         "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter)"
     );
+    bytes32 internal constant SESSION_AUTH_TYPEHASH =
+        keccak256("SessionAuthorization(bytes32 permit2Digest,uint256 sessionEpoch)");
+    bytes32 internal constant SESSION_NAME_HASH = keccak256("MoltworldWifSessionMandate");
+
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4663;
+    address internal constant CANONICAL_WIF = 0x5173b8eA6923c2d40267890D45C46a3480954773;
+    address internal constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address internal constant CANONICAL_EXACT_PROXY = 0x402085c248EeA27D92E8b30b2C58ed07f9E20001;
 
     // secp256k1n / 2. Rejecting high-s signatures prevents signature malleability.
     uint256 internal constant SECP256K1N_HALF_ORDER =
@@ -49,15 +58,17 @@ contract WifPermit2SessionMandate {
     uint256 public maxPerCall;
     uint256 public expiry;
     uint256 public configuredAllowance;
+    uint256 public sessionEpoch;
     bool public active;
 
-    event Armed(address indexed agent, uint256 maxPerCall, uint256 expiry, uint256 allowance);
-    event Revoked();
+    event Armed(address indexed agent, uint256 maxPerCall, uint256 expiry, uint256 allowance, uint256 sessionEpoch);
+    event Revoked(uint256 sessionEpoch);
     event Withdrawn(address indexed owner, uint256 amount);
 
     error NotOwner();
     error ZeroAddress();
     error InvalidArm();
+    error InvalidDeploymentConfig();
     error MandateActive();
     error TokenCallFailed();
     error TokenReturnedFalse();
@@ -79,6 +90,16 @@ contract WifPermit2SessionMandate {
                 || exactProxy_ == address(0) || payTo_ == address(0)
         ) revert ZeroAddress();
 
+        // Robinhood mainnet deployments must use the canonical token, Permit2, and exact proxy.
+        // Non-mainnet deployments are retained only for isolated local simulations.
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            if (
+                token_ != CANONICAL_WIF || permit2_ != CANONICAL_PERMIT2
+                    || exactProxy_ != CANONICAL_EXACT_PROXY || token_.code.length == 0
+                    || permit2_.code.length == 0 || exactProxy_.code.length == 0
+            ) revert InvalidDeploymentConfig();
+        }
+
         owner = owner_;
         token = token_;
         permit2 = permit2_;
@@ -95,33 +116,36 @@ contract WifPermit2SessionMandate {
     {
         if (
             agent == address(0) || maxPerCall_ == 0 || allowance_ == 0
-                || maxPerCall_ > allowance_ || expiry_ <= block.timestamp
+                || allowance_ == type(uint256).max || maxPerCall_ > allowance_
+                || expiry_ <= block.timestamp || allowance_ > _safeBalanceOf()
         ) revert InvalidArm();
-
-        // Zero first for compatibility with tokens that require a zero-to-nonzero approval change.
-        _safeApprove(0);
-        _safeApprove(allowance_);
 
         sessionAgent = agent;
         maxPerCall = maxPerCall_;
         expiry = expiry_;
         configuredAllowance = allowance_;
+        sessionEpoch += 1;
         active = true;
 
-        emit Armed(agent, maxPerCall_, expiry_, allowance_);
+        // Zero first for compatibility with tokens that require a zero-to-nonzero approval change.
+        _safeApprove(0);
+        _safeApprove(allowance_);
+
+        emit Armed(agent, maxPerCall_, expiry_, allowance_, sessionEpoch);
     }
 
     /// @notice Disable the mandate and remove its Permit2 allowance.
     function revoke() external onlyOwner {
-        _safeApprove(0);
-
         active = false;
         sessionAgent = address(0);
         maxPerCall = 0;
         expiry = 0;
         configuredAllowance = 0;
+        sessionEpoch += 1;
 
-        emit Revoked();
+        _safeApprove(0);
+
+        emit Revoked(sessionEpoch);
     }
 
     /// @notice Withdraw fixed-token funds back to the fixed owner, only while inactive.
@@ -134,6 +158,11 @@ contract WifPermit2SessionMandate {
     /// @notice Return the current raw ERC-20 allowance from this mandate to Permit2.
     function remainingAllowance() external view returns (uint256) {
         return _safeAllowance();
+    }
+
+    /// @notice Return this mandate's fixed-token balance.
+    function tokenBalance() external view returns (uint256) {
+        return _safeBalanceOf();
     }
 
     /// @notice Pure helper exposing the exact wrapper tuple expected by isValidSignature.
@@ -149,12 +178,13 @@ contract WifPermit2SessionMandate {
             uint256 deadline,
             address to,
             uint256 validAfter,
+            uint256 wrappedSessionEpoch,
             bytes memory sessionSignature
         )
     {
         return abi.decode(
             wrapper,
-            (address, uint256, address, uint256, uint256, address, uint256, bytes)
+            (address, uint256, address, uint256, uint256, address, uint256, uint256, bytes)
         );
     }
 
@@ -166,7 +196,7 @@ contract WifPermit2SessionMandate {
         view
         returns (bytes4)
     {
-        if (!active || block.timestamp > expiry) return EIP1271_FAILURE_VALUE;
+        if (!active || block.timestamp >= expiry) return EIP1271_FAILURE_VALUE;
 
         try this.decodeWrapper(wrapper) returns (
             address wrappedToken,
@@ -176,6 +206,7 @@ contract WifPermit2SessionMandate {
             uint256 deadline,
             address to,
             uint256 validAfter,
+            uint256 wrappedSessionEpoch,
             bytes memory sessionSignature
         ) {
             // abi.decode accepts trailing bytes; require the exact canonical abi.encode wrapper.
@@ -190,6 +221,7 @@ contract WifPermit2SessionMandate {
                             deadline,
                             to,
                             validAfter,
+                            wrappedSessionEpoch,
                             sessionSignature
                         )
                     )
@@ -197,12 +229,14 @@ contract WifPermit2SessionMandate {
 
             if (
                 wrappedToken != token || spender != exactProxy || to != payTo
-                    || amount == 0 || amount > maxPerCall
+                    || amount == 0 || amount > maxPerCall || wrappedSessionEpoch != sessionEpoch
             ) return EIP1271_FAILURE_VALUE;
 
-            // Match Permit2's deadline convention (expired only strictly after deadline), while
-            // requiring a coherent witness window and a valid-after time that has begun.
-            if (deadline < validAfter || block.timestamp > deadline || validAfter > block.timestamp) {
+            // Expiry is exclusive. A permit may not remain valid past the mandate expiry.
+            if (
+                deadline < validAfter || deadline > expiry || block.timestamp >= deadline
+                    || validAfter > block.timestamp
+            ) {
                 return EIP1271_FAILURE_VALUE;
             }
 
@@ -213,7 +247,10 @@ contract WifPermit2SessionMandate {
             bytes32 digest = _permitWitnessTransferFromDigest(
                 wrappedToken, amount, spender, nonce, deadline, to, validAfter
             );
-            if (digest != hash || !_isLowSRecoveredSigner(digest, sessionSignature)) {
+            if (
+                digest != hash
+                    || !_isLowSRecoveredSigner(_sessionAuthorizationDigest(hash, wrappedSessionEpoch), sessionSignature)
+            ) {
                 return EIP1271_FAILURE_VALUE;
             }
 
@@ -249,6 +286,18 @@ contract WifPermit2SessionMandate {
 
         bytes32 domainSeparator = keccak256(
             abi.encode(EIP712_DOMAIN_TYPEHASH, PERMIT2_NAME_HASH, block.chainid, permit2)
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function _sessionAuthorizationDigest(bytes32 permit2Digest, uint256 epoch)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes32 structHash = keccak256(abi.encode(SESSION_AUTH_TYPEHASH, permit2Digest, epoch));
+        bytes32 domainSeparator = keccak256(
+            abi.encode(EIP712_DOMAIN_TYPEHASH, SESSION_NAME_HASH, block.chainid, address(this))
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
@@ -299,6 +348,14 @@ contract WifPermit2SessionMandate {
         amount = abi.decode(data, (uint256));
     }
 
+    function _safeBalanceOf() internal view returns (uint256 amount) {
+        (bool ok, bytes memory data) = token.staticcall(
+            abi.encodeWithSelector(IERC20Minimal.balanceOf.selector, address(this))
+        );
+        if (!ok || data.length != 32) return 0;
+        amount = abi.decode(data, (uint256));
+    }
+
     function _safeApprove(uint256 amount) internal {
         (bool ok, bytes memory data) = token.call(
             abi.encodeWithSelector(IERC20Minimal.approve.selector, permit2, amount)
@@ -321,6 +378,7 @@ contract WifPermit2SessionMandate {
 }
 
 interface IERC20Minimal {
+    function balanceOf(address account) external view returns (uint256);
     function allowance(address account, address spender) external view returns (uint256);
     function approve(address spender, uint256 amount) external returns (bool);
     function transfer(address recipient, uint256 amount) external returns (bool);

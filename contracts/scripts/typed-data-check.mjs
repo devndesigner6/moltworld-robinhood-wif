@@ -15,6 +15,8 @@ const nonce = 987654321n;
 const deadline = 1_900_000_000n;
 const validAfter = 1_800_000_000n;
 const chainId = 4663;
+const mandate = "0x4444444444444444444444444444444444444444";
+const sessionEpoch = 3n;
 const sessionSignature = "0x1234567890abcdef";
 
 const domain = {
@@ -104,6 +106,33 @@ const structHash = keccak256(
 const manualDigest = keccak256(concat(["0x1901", domainSeparator, structHash]));
 assert.equal(manualDigest, viemDigest, "manual digest must match viem's typed-data digest");
 
+const sessionNameHash = keccak256(new TextEncoder().encode("MoltworldWifSessionMandate"));
+const sessionAuthTypeHash = keccak256(
+  new TextEncoder().encode("SessionAuthorization(bytes32 permit2Digest,uint256 sessionEpoch)")
+);
+const sessionDomainSeparator = keccak256(
+  encodeAbiParameters(abi32, [domainTypeHash, sessionNameHash, BigInt(chainId), mandate])
+);
+const sessionStructHash = keccak256(
+  encodeAbiParameters(
+    [{ type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }],
+    [sessionAuthTypeHash, viemDigest, sessionEpoch]
+  )
+);
+const manualSessionDigest = keccak256(concat(["0x1901", sessionDomainSeparator, sessionStructHash]));
+const viemSessionDigest = hashTypedData({
+  domain: { name: "MoltworldWifSessionMandate", chainId, verifyingContract: mandate },
+  types: {
+    SessionAuthorization: [
+      { name: "permit2Digest", type: "bytes32" },
+      { name: "sessionEpoch", type: "uint256" },
+    ],
+  },
+  primaryType: "SessionAuthorization",
+  message: { permit2Digest: viemDigest, sessionEpoch },
+});
+assert.equal(manualSessionDigest, viemSessionDigest, "manual session digest must match viem's epoch-bound digest");
+
 const wrapper = encodeAbiParameters(
   [
     { type: "address" },
@@ -113,9 +142,10 @@ const wrapper = encodeAbiParameters(
     { type: "uint256" },
     { type: "address" },
     { type: "uint256" },
+    { type: "uint256" },
     { type: "bytes" },
   ],
-  [token, amount, spender, nonce, deadline, to, validAfter, sessionSignature]
+  [token, amount, spender, nonce, deadline, to, validAfter, sessionEpoch, sessionSignature]
 );
 assert.equal(
   wrapper.slice(0, 2 + 64),
@@ -125,4 +155,5 @@ assert.equal(
 assert.equal(wrapper.length % 64, 2, "canonical abi.encode wrapper must be word-aligned");
 
 console.log(`typed-data digest agreement: ${manualDigest}`);
+console.log(`epoch-bound session digest agreement: ${manualSessionDigest}`);
 console.log(`wrapper bytes: ${(wrapper.length - 2) / 2}`);

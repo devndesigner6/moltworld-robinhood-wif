@@ -774,5 +774,15 @@ export const SITE_JS = String.raw`
     }).catch(() => {});
     load(0);
   }
+
+  const mandateRoot = document.querySelector("[data-wif-mandate-root]");
+  if (mandateRoot && document.body.dataset.mandateSrc) {
+    import(document.body.dataset.mandateSrc)
+      .then((mod) => mod.mountWifMandateSetup(mandateRoot))
+      .catch((error) => {
+        const status = mandateRoot.querySelector("[data-mandate-status]");
+        if (status) status.textContent = "Mandate setup module failed to load: " + (error?.message || String(error));
+      });
+  }
 })();
 `;

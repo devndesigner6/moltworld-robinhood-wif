@@ -116,12 +116,24 @@ export function clientFromEnv(): { client: MoltworldClient; robinhood: boolean; 
       throw new Error("Set MOLTWORLD_WIF_SESSION_PRIVATE_KEY or create the local wif-agent.key session key before using a WIF mandate.");
     }
     const vaultAddress = getAddress(mandateAddress);
+    const expectedOwnerRaw = process.env.MOLTWORLD_WIF_MANDATE_OWNER?.trim();
+    if (!expectedOwnerRaw) {
+      throw new Error("Set MOLTWORLD_WIF_MANDATE_OWNER to the owner wallet address shown by the mandate setup page.");
+    }
+    const expectedOwner = getAddress(expectedOwnerRaw);
+    const expectedPayToRaw = process.env.MOLTWORLD_PAYMENT_TO?.trim();
+    if (!expectedPayToRaw) {
+      throw new Error("Set MOLTWORLD_PAYMENT_TO to the verified pay_to from the gateway /health response before using a WIF mandate.");
+    }
+    const expectedPayTo = getAddress(expectedPayToRaw);
     const sessionKey = sessionSecret as `0x${string}`;
     const publicClient = createPublicClient({ chain: robinhoodChain, transport: http(ROBINHOOD_RPC_URL) });
     const evmSigner = createWifMandateClientSigner({
       publicClient: publicClient as any,
       mandateAddress: vaultAddress,
       sessionPrivateKey: sessionKey,
+      expectedOwner,
+      expectedPayTo,
     });
     const baseUrl = process.env.MOLTWORLD_URL || "https://motoworld-wif.vercel.app";
     const client = new MoltworldClient({
@@ -129,18 +141,15 @@ export function clientFromEnv(): { client: MoltworldClient; robinhood: boolean; 
       evmSigner,
       maxPerRequestUsd: Number(process.env.MOLTWORLD_MAX_PER_REQUEST_USD ?? 0.5),
       budgetUsd: Number(process.env.MOLTWORLD_BUDGET_USD ?? 5),
-      expectedPayTo: process.env.MOLTWORLD_PAYMENT_TO,
+      expectedPayTo,
       ensureEvmAllowance: async ({ asset, amount, network }) => {
         if (network !== "eip155:4663" || getAddress(asset) !== ROBINHOOD_WIF_MAINNET_TOKEN) {
           throw new Error("Refusing a mandate payment on a network or token other than Robinhood mainnet WIF.");
         }
-        const policy = await readWifMandatePolicy(publicClient as any, vaultAddress, sessionKey);
+        const policy = await readWifMandatePolicy(publicClient as any, vaultAddress, sessionKey, expectedOwner, expectedPayTo);
         if (BigInt(amount) > policy.maxPerCall) throw new Error("Requested WIF amount exceeds the on-chain per-call mandate cap.");
         if (BigInt(amount) > policy.remainingAllowance) {
           throw new Error(`WIF mandate allowance is too low (${policy.remainingAllowance} < ${amount}); owner must re-authorize it in the wallet UI.`);
-        }
-        if (process.env.MOLTWORLD_PAYMENT_TO && getAddress(process.env.MOLTWORLD_PAYMENT_TO) !== policy.payTo) {
-          throw new Error("Configured gateway pay-to address does not match the mandate's immutable recipient.");
         }
       },
     });

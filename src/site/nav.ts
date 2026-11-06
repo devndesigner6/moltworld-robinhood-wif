@@ -82,7 +82,9 @@ export const AUDIENCES = [
 
 export function navMenus(): NavMenu[] {
   const docs = config.docsUrl;
-  const activeProducts = config.paymentChain === "robinhood" ? PRODUCTS.filter((p) => p.label === "Gateway") : PRODUCTS;
+  const activeProducts = config.paymentChain === "robinhood"
+    ? PRODUCTS.filter((p) => p.label === "Gateway" || p.label === "Mandates" || p.label === "Marketplace").map((p) => p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p)
+    : PRODUCTS;
   const activeBuiltIns = config.paymentChain === "robinhood" ? builtIn().filter((p) => p.label === "Signed receipts") : builtIn();
   const activeAudiences = config.paymentChain === "robinhood" ? AUDIENCES.filter((a) => a.label !== "API sellers") : AUDIENCES;
   const activeWorkflows = config.paymentChain === "robinhood" ? WORKFLOWS.filter((u) => u.slug === "model-escalation") : WORKFLOWS;

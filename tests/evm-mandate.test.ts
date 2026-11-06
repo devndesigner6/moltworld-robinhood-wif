@@ -7,6 +7,7 @@ import {
 import {
   decodeAbiParameters,
   getAddress,
+  hashTypedData,
   recoverTypedDataAddress,
   type Hex,
 } from "viem";
@@ -32,6 +33,7 @@ const policy = {
   expectedPayTo: PAY_TO,
   expectedPermit2Proxy: x402ExactPermit2ProxyAddress,
   maxPerCallAmount: CAP,
+  sessionEpoch: 1n,
   expiryTimestamp: EXPIRY,
 } as const;
 
@@ -63,8 +65,16 @@ const WRAPPER_TYPES = [
   { name: "deadline", type: "uint256" },
   { name: "to", type: "address" },
   { name: "validAfter", type: "uint256" },
+  { name: "sessionEpoch", type: "uint256" },
   { name: "sessionSignature", type: "bytes" },
 ] as const;
+
+const SESSION_AUTH_TYPES = {
+  SessionAuthorization: [
+    { name: "permit2Digest", type: "bytes32" },
+    { name: "sessionEpoch", type: "uint256" },
+  ],
+} as const;
 
 describe("WIF EIP-1271 mandate EVM signer", () => {
   it("accepts the exact policy and wraps a session-key Permit2 signature", async () => {
@@ -73,11 +83,11 @@ describe("WIF EIP-1271 mandate EVM signer", () => {
     const wrapperSignature = await signer.signTypedData(typedData);
 
     expect(signer.address).toBe(getAddress(VAULT));
-    const [token, amount, spender, nonce, deadline, to, validAfter, sessionSignature] = decodeAbiParameters(
+    const [token, amount, spender, nonce, deadline, to, validAfter, sessionEpoch, sessionSignature] = decodeAbiParameters(
       WRAPPER_TYPES,
       wrapperSignature,
     );
-    expect({ token, amount, spender, nonce, deadline, to, validAfter }).toEqual({
+    expect({ token, amount, spender, nonce, deadline, to, validAfter, sessionEpoch }).toEqual({
       token: getAddress(TOKEN),
       amount: 100n,
       spender: getAddress(x402ExactPermit2ProxyAddress),
@@ -85,13 +95,22 @@ describe("WIF EIP-1271 mandate EVM signer", () => {
       deadline: EXPIRY - 300n,
       to: getAddress(PAY_TO),
       validAfter: 0n,
+      sessionEpoch: 1n,
     });
 
     const recovered = await recoverTypedDataAddress({
-      domain: typedData.domain,
-      types: typedData.types,
-      primaryType: typedData.primaryType,
-      message: typedData.message,
+      domain: { name: "MoltworldWifSessionMandate", chainId: ROBINHOOD_MAINNET_CHAIN_ID, verifyingContract: VAULT },
+      types: SESSION_AUTH_TYPES,
+      primaryType: "SessionAuthorization",
+      message: {
+        permit2Digest: hashTypedData({
+          domain: typedData.domain,
+          types: typedData.types,
+          primaryType: typedData.primaryType,
+          message: typedData.message,
+        } as any),
+        sessionEpoch,
+      },
       signature: sessionSignature,
     });
     expect(recovered).toBe(sessionAccount.address);
@@ -118,5 +137,9 @@ describe("WIF EIP-1271 mandate EVM signer", () => {
 
   it("rejects a mandate configured with a zero per-call cap", () => {
     expect(() => createWifEvmMandateSigner({ ...policy, maxPerCallAmount: 0n })).toThrow(/positive bigint/);
+  });
+
+  it("rejects a missing or zero policy epoch", () => {
+    expect(() => createWifEvmMandateSigner({ ...policy, sessionEpoch: 0n })).toThrow(/sessionEpoch/);
   });
 });

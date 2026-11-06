@@ -7,6 +7,7 @@ import {
 import {
   encodeAbiParameters,
   getAddress,
+  hashTypedData,
   type Address,
   type Hex,
 } from "viem";
@@ -21,8 +22,16 @@ const WRAPPER_SIGNATURE_TYPES = [
   { name: "deadline", type: "uint256" },
   { name: "to", type: "address" },
   { name: "validAfter", type: "uint256" },
+  { name: "sessionEpoch", type: "uint256" },
   { name: "sessionSignature", type: "bytes" },
 ] as const;
+
+const SESSION_AUTH_TYPES = {
+  SessionAuthorization: [
+    { name: "permit2Digest", type: "bytes32" },
+    { name: "sessionEpoch", type: "uint256" },
+  ],
+} as const;
 
 export interface WifEvmMandateSignerOptions {
   /** Private key for the short-lived session key. It is never exposed by the returned signer. */
@@ -37,6 +46,8 @@ export interface WifEvmMandateSignerOptions {
   expectedPermit2Proxy?: Address | string;
   /** Maximum WIF base units allowed in one Permit2 authorization. */
   maxPerCallAmount: bigint;
+  /** Current on-chain policy epoch; old signatures cannot be reused after revoke/re-arm. */
+  sessionEpoch: bigint;
   /** Exact Unix-seconds deadline accepted by this signer. */
   expiryTimestamp: bigint | number;
 }
@@ -99,10 +110,10 @@ function requireBigint(value: unknown, label: string): bigint {
  * Creates an isolated x402 ClientEvmSigner for a future EIP-1271 WIF mandate.
  *
  * x402 supplies a Permit2 `PermitWitnessTransferFrom` request. This adapter checks the
- * complete request against the local policy, has the session key sign that exact EIP-712
- * request, and returns the vault-wrapper ABI payload expected by the mandate wallet:
+ * complete request against the local policy, binds the session signature to both the Permit2
+ * digest and current on-chain epoch, and returns the mandate's EIP-1271 wrapper:
  *
- * `abi.encode(token, amount, spender, nonce, deadline, to, validAfter, sessionSignature)`.
+ * `abi.encode(token, amount, spender, nonce, deadline, to, validAfter, sessionEpoch, sessionSignature)`.
  *
  * This helper does not deploy a wallet, submit transactions, or make any allowance claim;
  * it only bounds and wraps the off-chain signature.
@@ -126,6 +137,9 @@ export function createWifEvmMandateSigner(options: WifEvmMandateSignerOptions): 
     throw new Error("maxPerCallAmount must be a positive bigint.");
   }
   const expiryTimestamp = requireTimestamp(options.expiryTimestamp, "expiryTimestamp");
+  if (typeof options.sessionEpoch !== "bigint" || options.sessionEpoch <= 0n) {
+    throw new Error("sessionEpoch must be a positive bigint read from the active mandate.");
+  }
   const sessionAccount = privateKeyToAccount(options.sessionPrivateKey as Hex);
   const permit2Address = getAddress(PERMIT2_ADDRESS);
 
@@ -188,12 +202,23 @@ export function createWifEvmMandateSigner(options: WifEvmMandateSignerOptions): 
         throw new Error("Refusing to sign a Permit2 request with invalid time bounds.");
       }
 
-      // All policy checks complete before the session key is asked to sign.
-      const sessionSignature = await sessionAccount.signTypedData({
+      // The epoch is included in the session-key signature, not only the wrapper. This
+      // prevents an unused old Permit2 signature from being revived by re-arming the same key.
+      const permit2Digest = hashTypedData({
         domain: request.domain as any,
         types: request.types as any,
         primaryType: request.primaryType as any,
         message: request.message as any,
+      });
+      const sessionSignature = await sessionAccount.signTypedData({
+        domain: {
+          name: "MoltworldWifSessionMandate",
+          chainId: expectedChainId,
+          verifyingContract: vaultAddress,
+        },
+        types: SESSION_AUTH_TYPES,
+        primaryType: "SessionAuthorization",
+        message: { permit2Digest, sessionEpoch: options.sessionEpoch },
       });
       return encodeAbiParameters(WRAPPER_SIGNATURE_TYPES, [
         expectedToken,
@@ -203,6 +228,7 @@ export function createWifEvmMandateSigner(options: WifEvmMandateSignerOptions): 
         deadline,
         expectedPayTo,
         validAfter,
+        options.sessionEpoch,
         sessionSignature,
       ]);
     },

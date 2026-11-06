@@ -348,7 +348,7 @@ function home(c: Context) {
       ${sec(`<div class="dev-grid"><div><h2 data-split>One config for agents. <em>A few lines for apps.</em></h2><div class="sdk-list" data-reveal><a class="sdk" href="${docs()}/agents/mcp">${icon("plug", 20)}<b>MCP server</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/typescript">${icon("package", 20)}<b>TypeScript SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/sdks/python">${icon("package", 20)}<b>Python SDK</b>${icon("arrow", 16)}</a><a class="sdk" href="${docs()}/api-reference/introduction">${icon("braces", 20)}<b>HTTP API / curl</b>${icon("arrow", 16)}</a></div></div><div data-reveal style="--d:2">${codeTabs("hero", [["mcp", "MCP", s.mcp, "json"], ["ts", "TypeScript", s.ts], ["py", "Python", s.py], ["curl", "curl", s.curl, "sh"]])}</div></div>`)}
       ${sec(`${secHead("A wallet <em>instead of an account.</em>")}<div class="compare" data-reveal role="table" aria-label="Moltworld on Robinhood Chain compared with API keys and plans"><div class="compare-row head" role="row"><div role="columnheader"></div><div class="us" role="columnheader">Moltworld on Robinhood</div><div role="columnheader">API keys and plans</div></div>${[["Sign-up", "No account; connect an EVM wallet", "An account per provider"], ["Your money", "In your wallet until a WIF request settles", "Prepaid to the provider, or billed later"], ["Per-call spend", "Exact quote and WIF amount", "Provider-side limits"], ["A leaked credential", "A payment still needs wallet authorization", "May spend up to the key's limit"], ["Failed chat request", "Payment is not settled before a response", "Depends on the provider"], ["Proof of each call", "Signed receipt and on-chain settlement", "Usage logs"], ["Mandates and marketplace", "Not enabled on this payment rail", "Build billing yourself"]].map(([k, us, them]) => `<div class="compare-row" role="row"><div role="rowheader">${k}</div><div class="us" role="cell">${icon("check", 16)}${us}</div><div role="cell">${them}</div></div>`).join("")}</div>`)}
       ${sec(`${secHead("Every payment <em>has on-chain proof.</em>", arrowLink("/stats", "Live network"))}${statsWidget()}<p class="note" data-reveal>Stats are loaded from the gateway ledger. USD figures are quote-time estimates, not mark-to-market WIF totals.</p>`)}
-      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<div class="rail" data-reveal><div class="card status-card"><span class="badge good">Chat</span><p>Chat-capable agents can use MCP or an SDK and authorize a real WIF request.</p></div><div class="card status-card"><span class="badge">Other surfaces</span><p>Image, voice, mandates, marketplace, and automatic refunds are not enabled on this rail.</p></div></div>`)}
+      ${sec(`${secHead("Every kind of agent. <em>One chat payment path.</em>", arrowLink("/use-cases", "All use cases"))}<div class="rail" data-reveal><div class="card status-card"><span class="badge good">Chat</span><p>Chat-capable agents can use MCP or an SDK and authorize a real WIF request.</p></div><div class="card status-card"><span class="badge">Other surfaces</span><p>Image, voice, and video are not enabled. WIF mandates are experimental setup only, with live facilitator settlement unverified; marketplace payouts remain disabled.</p></div></div>`)}
       ${sec(robinhoodFaq())}
       ${ctaFinal("Stop managing keys. <em>Pay per call.</em>")}`;
     return renderPage(c, { path: "/", title: "Moltworld | Every AI chat model, paid per request", description: "The pay-per-request chat gateway for AI. Eligible chat models are paid in WIF on Robinhood Chain through x402, with exact quotes and signed receipts.", body, data: catalogScript(chatModels) });
@@ -667,8 +667,73 @@ function modelsPage(c: Context) {
 
 function mandates(c: Context) {
   if (config.paymentChain === "robinhood") {
-    const body = `${pageHero({ crumbs: [["Product", "/products"]], title: "Algorand mandates are <em>not enabled here.</em>" })}${sec(`<p class="note">Mandates use Algorand LogicSig/AVM programs and cannot be moved to Robinhood Chain as-is. WIF checkout is currently limited to chat requests while an EVM-compatible delegation model is designed and audited.</p>`)}`;
-    return renderPage(c, { path: "/products/mandates", title: "Mandates unavailable", description: "Algorand mandates are disabled on the Robinhood Chain deployment.", body });
+    if (!config.isMainnet) {
+      const body = `${pageHero({ crumbs: [["Product", "/products"]], title: "WIF mandates are <em>mainnet-only.</em>" })}${sec(`<p class="note">The owner setup page is deliberately unavailable on testnet. The WIF mandate contract is pinned to Robinhood Chain mainnet.</p>`)}`;
+      return renderPage(c, { path: "/products/mandates", title: "WIF mandates", description: "WIF mandates use a Robinhood Chain mainnet EIP-1271 policy wallet.", body });
+    }
+    const body = `
+      ${pageHero({ crumbs: [["Product", "/products"]], title: "Give an agent a budget, <em>not your keys.</em>", ctas: `${btn("/playground", "Test direct WIF checkout")}${btn("/quickstart", "WIF quickstart", "ghost")}` })}
+      ${sec(`
+        <div data-wif-mandate-root class="mandate-setup">
+        <div class="mandate-warning" role="note">
+          <strong>Experimental mainnet beta — read before using.</strong>
+          <p>This is real Robinhood Chain contract setup, not a simulation. The contract has not had an independent security audit, and Moltworld's custom EIP-1271 mandate has not yet completed a real paid settlement through the live facilitator. Start only with an amount you can afford to lose. The setup page will not ask for a seed phrase, wallet private key, or agent private key.</p>
+        </div>
+        <div class="grid-2 mandate-top-grid">
+          <div class="card">
+            <h2>1. Connect the owner wallet</h2>
+            <p>Use MetaMask or another injected EVM wallet. It stays in control of every deployment, WIF transfer, arm, revoke, and withdrawal transaction.</p>
+            <button class="btn" type="button" data-action="connect">Connect owner wallet</button>
+            <p class="mandate-owner-line">Connected owner: <span class="mono" data-owner-address>Not connected</span></p>
+          </div>
+          <div class="card">
+            <h2>2. Create a separate agent key</h2>
+            <p>Run this on the machine that will run your <strong>local stdio MCP</strong>. It stores the session private key locally with restricted file permissions and prints only its public address.</p>
+            <pre class="mandate-code"><code>moltworld-mcp wif-session-keygen</code></pre>
+            <p>Copy only the printed address into the form. Never paste the session key here. The hosted remote MCP stays keyless.</p>
+          </div>
+        </div>
+        <div class="card mandate-card">
+          <h2>3. Deploy and configure the mandate</h2>
+          <div class="mandate-fields">
+            <label>Existing mandate address (optional)<input data-field="mandate-address" autocomplete="off" placeholder="0x…"></label>
+            <label>Local agent public address<input data-field="agent-address" autocomplete="off" placeholder="0x…"></label>
+            <label>Maximum WIF per call<input data-field="per-call" inputmode="decimal" placeholder="e.g. 1" value="1"></label>
+            <label>Finite total WIF allowance<input data-field="total-cap" inputmode="decimal" placeholder="e.g. 10" value="10"></label>
+            <label>Mandate duration (days)<input data-field="duration-days" type="number" min="1" max="7" step="1" value="1"></label>
+          </div>
+          <div class="mandate-actions">
+            <button class="btn btn-ghost" type="button" data-action="refresh">Verify existing contract</button>
+            <button class="btn" type="button" data-action="deploy">Deploy new contract</button>
+          </div>
+          <p class="note">Deployment creates an empty contract and costs gas; it does not move WIF. The contract fixes its owner, the WIF token, Permit2, the x402 payment proxy, and the current live gateway pay-to.</p>
+          <p class="mandate-details" data-mandate-details>Connect the owner wallet to verify live chain, token, recipient, and contract state.</p>
+          <a class="mono mandate-tx" data-deploy-tx hidden target="_blank" rel="noopener"></a>
+        </div>
+        <div class="grid-2 mandate-top-grid">
+          <div class="card">
+            <h2>4. Fund and arm</h2>
+            <p>WIF is transferred into the contract, then the owner arms a finite Permit2 allowance. The contract will reject an unlimited allowance, an allowance above its WIF balance, a different token/proxy/payee, an expired request, or a stale session epoch.</p>
+            <label>WIF to transfer<input data-field="fund-amount" inputmode="decimal" placeholder="small test amount"></label>
+            <button class="btn btn-ghost" type="button" data-action="fund">Transfer WIF to mandate</button>
+            <button class="btn" type="button" data-action="arm">Arm this mandate</button>
+          </div>
+          <div class="card">
+            <h2>5. Revoke or withdraw</h2>
+            <p>Revocation advances the policy epoch and zeroes the Permit2 allowance. Wait for the revoke transaction to confirm before withdrawing WIF to the owner wallet.</p>
+            <label>WIF to withdraw<input data-field="withdraw-amount" inputmode="decimal" placeholder="amount"></label>
+            <div class="mandate-actions"><button class="btn btn-ghost" type="button" data-action="revoke">Revoke mandate</button><button class="btn btn-ghost" type="button" data-action="withdraw">Withdraw WIF</button></div>
+          </div>
+        </div>
+        <div class="card mandate-card">
+          <label class="mandate-ack"><input data-field="risk-ack" type="checkbox"> I understand this is unaudited experimental contract code and the WIF mandate's real facilitator settlement has not yet been proven. I will start with a small test balance and review every wallet prompt.</label>
+          <div class="mandate-actions"><button class="btn btn-ghost" type="button" data-action="copy-config">Copy local MCP settings</button></div>
+          <p class="mandate-status" data-mandate-status role="status" aria-live="polite">Ready. Connect the owner wallet to verify the live WIF settings.</p>
+        </div>
+        </div>
+      `)}
+      ${ctaFinal("An agent key. <em>A bounded WIF budget.</em>", `${btn("/playground", "Try direct checkout")}${btn("/quickstart", "Read MCP setup", "ghost")}`)}`;
+    return renderPage(c, { path: "/products/mandates", title: "WIF Agent Mandates", description: "Experimental owner-controlled WIF session mandates on Robinhood Chain with a finite Permit2 allowance, per-call cap, expiry, and revocation.", body });
   }
   const origin = config.publicDomain;
   const body = `
@@ -900,7 +965,7 @@ function developers(c: Context) {
       "Use an EVM wallet on Robinhood Chain mainnet (chain ID 4663).",
       "Hold WIF for the payment and a small amount of native ETH for the first exact Permit2 token approval.",
       "Use the JavaScript SDK's EVM signer or another x402 client with EVM exact + Permit2 support.",
-      "Start with a chat model; media, mandates, and marketplace payments are not enabled on this rail.",
+      "Start with a chat model. Image, voice, video, and marketplace payments are not enabled on this rail; WIF mandates are experimental and not yet proven with live facilitator settlement.",
     ])}${quickstart}`) + sec(`${secHead("Public endpoints.")}${linkCards([
       { title: "Chat model catalog", href: "/v1/models", icon: "package" },
       { title: "Free request quote", href: "/playground", icon: "bolt" },

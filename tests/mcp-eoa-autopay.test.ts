@@ -41,6 +41,8 @@ describe("local EVM EOA auto-payment guard", () => {
 
   it("selects a deployed WIF mandate signer without enabling unrestricted EOA autopay", () => {
     vi.stubEnv("MOLTWORLD_WIF_MANDATE_ADDRESS", "0x4444444444444444444444444444444444444444");
+    vi.stubEnv("MOLTWORLD_WIF_MANDATE_OWNER", "0x6666666666666666666666666666666666666666");
+    vi.stubEnv("MOLTWORLD_PAYMENT_TO", "0x3333333333333333333333333333333333333333");
     vi.stubEnv("MOLTWORLD_WIF_SESSION_PRIVATE_KEY", TEST_KEY);
     vi.stubEnv("MOLTWORLD_EVM_PRIVATE_KEY", "");
     vi.stubEnv("MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY", "");

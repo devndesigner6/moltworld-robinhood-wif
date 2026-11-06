@@ -64,7 +64,9 @@ function compileContracts(outputDir) {
       "test/MockERC20.sol": { content: readFileSync(join(testRoot, "MockERC20.sol"), "utf8") },
     },
     settings: {
+      optimizer: { enabled: true, runs: 200 },
       evmVersion: "shanghai",
+      metadata: { bytecodeHash: "none" },
       outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
     },
   };
@@ -233,6 +235,12 @@ async function main() {
     const expiry = blockBeforeArm.timestamp + 3_600n;
     const maxPerCall = 250n;
     const configuredAllowance = 1_000n;
+    await assert.rejects(ownerWallet.writeContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "arm",
+      args: [agent.address, maxPerCall, expiry, tokenSupply + 1n],
+    }), "owner cannot arm an allowance above the mandate's WIF balance");
     const armHash = await ownerWallet.writeContract({
       address: mandateAddress,
       abi: mandate.abi,
@@ -241,6 +249,8 @@ async function main() {
     });
     await publicClient.waitForTransactionReceipt({ hash: armHash });
     assert.equal(await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "active" }), true);
+    const sessionEpoch = await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "sessionEpoch" });
+    assert.equal(sessionEpoch, 1n, "first arm must establish epoch one");
     assert.equal(
       await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "remainingAllowance" }),
       configuredAllowance,
@@ -274,9 +284,21 @@ async function main() {
       witness: { to: payTo, validAfter },
     };
     const digest = hashTypedData({ domain, types: permitTypes, primaryType: "PermitWitnessTransferFrom", message });
-    const sessionSignature = await agent.signTypedData({ domain, types: permitTypes, primaryType: "PermitWitnessTransferFrom", message });
+    const sessionAuthTypes = {
+      SessionAuthorization: [
+        { name: "permit2Digest", type: "bytes32" },
+        { name: "sessionEpoch", type: "uint256" },
+      ],
+    };
+    const sessionAuthDomain = { name: "MoltworldWifSessionMandate", chainId: CHAIN_ID, verifyingContract: mandateAddress };
+    const sessionSignature = await agent.signTypedData({
+      domain: sessionAuthDomain,
+      types: sessionAuthTypes,
+      primaryType: "SessionAuthorization",
+      message: { permit2Digest: digest, sessionEpoch },
+    });
 
-    const wrapper = (wrappedAmount, wrappedSpender, signature = sessionSignature) =>
+    const wrapper = (wrappedAmount, wrappedSpender, wrappedEpoch = sessionEpoch, signature = sessionSignature) =>
       encodeAbiParameters(
         [
           { type: "address" },
@@ -286,9 +308,10 @@ async function main() {
           { type: "uint256" },
           { type: "address" },
           { type: "uint256" },
+          { type: "uint256" },
           { type: "bytes" },
         ],
-        [tokenAddress, wrappedAmount, wrappedSpender, nonce, deadline, payTo, validAfter, signature]
+        [tokenAddress, wrappedAmount, wrappedSpender, nonce, deadline, payTo, validAfter, wrappedEpoch, signature]
       );
 
     const validResult = await publicClient.readContract({
@@ -314,6 +337,44 @@ async function main() {
       args: [digest, wrapper(amount, wrongProxy)],
     });
     assert.equal(wrongPolicyResult.toLowerCase(), FAILURE_VALUE, "wrong spender policy must be rejected");
+    const wrongEpochResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, exactProxy, sessionEpoch + 1n)],
+    });
+    assert.equal(wrongEpochResult.toLowerCase(), FAILURE_VALUE, "a signature cannot be relabeled with another epoch");
+
+    const deadlineBeyondExpiry = expiry + 1n;
+    const messageBeyondExpiry = { ...message, deadline: deadlineBeyondExpiry };
+    const digestBeyondExpiry = hashTypedData({ domain, types: permitTypes, primaryType: "PermitWitnessTransferFrom", message: messageBeyondExpiry });
+    const signatureBeyondExpiry = await agent.signTypedData({
+      domain: sessionAuthDomain,
+      types: sessionAuthTypes,
+      primaryType: "SessionAuthorization",
+      message: { permit2Digest: digestBeyondExpiry, sessionEpoch },
+    });
+    const wrapperBeyondExpiry = encodeAbiParameters(
+      [
+        { type: "address" }, { type: "uint256" }, { type: "address" }, { type: "uint256" },
+        { type: "uint256" }, { type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" },
+      ],
+      [tokenAddress, amount, exactProxy, nonce, deadlineBeyondExpiry, payTo, validAfter, sessionEpoch, signatureBeyondExpiry]
+    );
+    const beyondExpiryResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digestBeyondExpiry, wrapperBeyondExpiry],
+    });
+    assert.equal(beyondExpiryResult.toLowerCase(), FAILURE_VALUE, "a Permit2 deadline cannot outlive the mandate");
+
+    await assert.rejects(ownerWallet.writeContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "arm",
+      args: [agent.address, maxPerCall, expiry, (1n << 256n) - 1n],
+    }), "max uint256 allowance must be rejected rather than treated as a finite cap");
 
     // Exercise the mock's finite transferFrom allowance through the local Permit2 stand-in.
     const simulatedTransferHash = await ownerWallet.writeContract({
@@ -349,11 +410,43 @@ async function main() {
     });
     assert.equal(postRevokeResult.toLowerCase(), FAILURE_VALUE, "revoked mandate must reject the prior signature");
 
+    const blockBeforeRearm = await publicClient.getBlock();
+    const rearmExpiry = blockBeforeRearm.timestamp + 3_600n;
+    const rearmHash = await ownerWallet.writeContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "arm",
+      args: [agent.address, maxPerCall, rearmExpiry, 500n],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: rearmHash });
+    const rearmedEpoch = await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "sessionEpoch" });
+    assert.equal(rearmedEpoch, sessionEpoch + 2n, "revoke and re-arm must each advance the epoch");
+    const revivedResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, exactProxy)],
+    });
+    assert.equal(revivedResult.toLowerCase(), FAILURE_VALUE, "an unused signature from before revoke must stay invalid after re-arm");
+    const rearmedSignature = await agent.signTypedData({
+      domain: sessionAuthDomain,
+      types: sessionAuthTypes,
+      primaryType: "SessionAuthorization",
+      message: { permit2Digest: digest, sessionEpoch: rearmedEpoch },
+    });
+    const currentEpochResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, exactProxy, rearmedEpoch, rearmedSignature)],
+    });
+    assert.equal(currentEpochResult.toLowerCase(), MAGIC_VALUE, "current epoch-bound session authorization must validate");
+
     console.log("LOCAL SIMULATED EVM TEST PASSED");
     console.log(`chainId=${CHAIN_ID} rpc=${rpcUrl}`);
     console.log(`owner=${owner.address} agent=${agent.address}`);
     console.log(`MockERC20=${tokenAddress} mandate=${mandateAddress}`);
-    console.log("covered: owner arm, exact signature validation, wrong amount/policy rejection, owner-only revoke, finite allowance decrement, allowance reset, post-revoke invalidation");
+    console.log("covered: owner arm, epoch-bound signature validation, wrong amount/policy/epoch rejection, max allowance rejection, owner-only revoke, finite allowance decrement, allowance reset, old signature invalidation after re-arm");
     console.log("This is local simulated EVM coverage only; it is not proof of a real facilitator, Permit2 deployment, network, or transaction.");
   } finally {
     await stopProcess(ganache);

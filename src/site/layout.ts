@@ -117,7 +117,9 @@ function header(path: string): string {
 
 function footer(): string {
   const docs = config.docsUrl;
-  const activeProducts = config.paymentChain === "robinhood" ? PRODUCTS.filter((p) => p.label === "Gateway") : PRODUCTS;
+  const activeProducts = config.paymentChain === "robinhood"
+    ? PRODUCTS.filter((p) => p.label === "Gateway" || p.label === "Mandates" || p.label === "Marketplace").map((p) => p.label === "Mandates" ? { ...p, label: "Mandates (beta)" } : p.label === "Marketplace" ? { ...p, label: "Marketplace (disabled)" } : p)
+    : PRODUCTS;
   const activeAudiences = config.paymentChain === "robinhood" ? AUDIENCES.filter((a) => a.label !== "API sellers") : AUDIENCES;
   const githubUrl = config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-x402-gateway" : "https://github.com/hackcat29/moltworld-x402";
   const developerLinks: Array<readonly [string, string]> = config.paymentChain === "robinhood"
@@ -208,7 +210,7 @@ export function renderPage(c: Context, opts: PageOptions): Response {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="${origin}/og.png">
 </head>
-<body data-origin="${origin}" data-explorer="${config.paymentChain === "robinhood" ? (config.isMainnet ? "https://robinhoodchain.blockscout.com" : "https://explorer.testnet.chain.robinhood.com") : config.isMainnet ? "https://lora.algokit.io/mainnet" : "https://lora.algokit.io/testnet"}" data-world-src="${asset("world.js")}" data-flow-src="${asset("flow.js")}" data-three-src="${asset("vendor/three.js")}" data-tgpu-src="${asset("vendor/typegpu.js")}" data-pay-src="${asset("vendor/pay.js")}">
+<body data-origin="${origin}" data-explorer="${config.paymentChain === "robinhood" ? (config.isMainnet ? "https://robinhoodchain.blockscout.com" : "https://explorer.testnet.chain.robinhood.com") : config.isMainnet ? "https://lora.algokit.io/mainnet" : "https://lora.algokit.io/testnet"}" data-world-src="${asset("world.js")}" data-flow-src="${asset("flow.js")}" data-three-src="${asset("vendor/three.js")}" data-tgpu-src="${asset("vendor/typegpu.js")}" data-pay-src="${asset("vendor/pay.js")}" data-mandate-src="${asset("vendor/mandate.js")}">
   <a class="skip" href="#main">Skip to content</a>
   ${header(opts.path)}
   <main id="main">

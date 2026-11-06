@@ -600,6 +600,27 @@ dl.kv dt { color: var(--dim); font: 12.5px var(--mono); padding-top: 1px; } dl.k
 .run-result audio, .run-result video { width: 100%; border-radius: 12px; }
 .run-receipt { border-top: 1px solid var(--line); padding-top: 14px; }
 .run-receipt p { margin: 0; }
+.mandate-setup { display: grid; gap: 16px; }
+.mandate-warning { padding: 20px 22px; border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--line)); border-left: 4px solid var(--danger); border-radius: 16px; background: color-mix(in srgb, var(--danger) 6%, var(--bg-1)); }
+.mandate-warning strong { display: block; margin-bottom: 8px; color: var(--danger); font: 600 14px var(--mono); }
+.mandate-warning p { margin: 0; color: var(--text); line-height: 1.6; font-size: 14px; }
+.mandate-top-grid { margin: 0; }
+.mandate-top-grid .card { display: flex; flex-direction: column; align-items: flex-start; }
+.mandate-top-grid .card h2, .mandate-card h2 { margin: 0 0 12px; font-size: clamp(20px, 2.4vw, 26px); letter-spacing: -.03em; }
+.mandate-top-grid .card p { line-height: 1.6; }
+.mandate-owner-line { margin-top: 18px !important; overflow-wrap: anywhere; font-size: 13px !important; }
+.mandate-owner-line .mono { color: var(--text); }
+.mandate-code { width: 100%; margin: 14px 0 8px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); overflow: auto; font: 13px var(--mono); }
+.mandate-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.mandate-fields label { margin: 0; }
+.mandate-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.mandate-details, .mandate-status { margin: 14px 0 0; overflow-wrap: anywhere; font: 13px/1.6 var(--mono); color: var(--muted); }
+.mandate-status.good { color: var(--mint); }
+.mandate-status.bad { color: var(--danger); }
+.mandate-ack { display: flex; align-items: flex-start; gap: 12px; margin: 0; color: var(--text); font: 13px/1.6 var(--font); text-transform: none; letter-spacing: 0; }
+.mandate-ack input { width: 18px; min-height: 18px; height: 18px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+.mandate-tx { display: inline-block; margin-top: 12px; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .mandate-fields { grid-template-columns: minmax(0, 1fr); } .mandate-actions .btn { flex: 1 1 auto; } }
 
 /* catalog */
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 24px; }
