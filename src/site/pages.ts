@@ -128,25 +128,15 @@ function snippets(model = "gpt-4o") {
     mcp: config.paymentChain === "robinhood" ? `{
   "mcpServers": {
     "moltworld": {
-      "command": "moltworld-mcp",
-      "args": [],
-      "env": {
-        "MOLTWORLD_URL": "${origin}",
-        "MOLTWORLD_ENV": "local",
-        "MOLTWORLD_EVM_KEY_ROLE": "dedicated",
-        "MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY": "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE",
-        "MOLTWORLD_MAX_PER_REQUEST_USD": "0.25",
-        "MOLTWORLD_BUDGET_USD": "5"
-      }
+      "type": "http",
+      "url": "${origin}/mcp"
     }
   }
 }
 
-// LOCAL DEVELOPMENT ONLY: generate a disposable key with moltworld-mcp evm-keygen.
-// Its private key is kept in ~/.moltworld/wif-agent.key, never the owner's wallet.
-// Process budgets are not on-chain mandates; for production use caller-approved signing.
-// Tools: moltworld_models, moltworld_quote, moltworld_chat, moltworld_marketplace, moltworld_market.
-// Marketplace tools return unavailable until the operator enables the WIF marketplace.
+// Remote MCP lists models, quotes requests, and relays caller-signed chat.
+// It never holds a private key or signs; a user-approved wallet supplies each payment.
+// Agent mandates are not live. Marketplace tools remain unavailable until enabled.
 // This is configuration example text; it does not claim a completed call.
 ` : `{
   "mcpServers": {
