@@ -183,21 +183,23 @@ const res = await client.chat("${model}", {
 
 console.log(res.data.choices[0].message.content);
 console.log(res.receipt?.txid, res.verification?.ok);`,
-    py: config.paymentChain === "robinhood" ? `import os
-from moltworld import MoltworldClient
+    py: config.paymentChain === "robinhood" ? `import json
+from urllib.request import Request, urlopen
 
-# Local development only: a dedicated disposable EOA, not an on-chain mandate.
-os.environ["MOLTWORLD_ENV"] = "local"
-os.environ["MOLTWORLD_EVM_KEY_ROLE"] = "dedicated"
-os.environ["MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY"] = "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE"
-client = MoltworldClient(
-    evm_private_key=os.environ["MOLTWORLD_EVM_PRIVATE_KEY"],
-    base_url="${origin}",
-    max_per_request_usd=0.25,
-    budget_usd=5,
+payload = {
+    "model": "${model}",
+    "messages": [{"role": "user", "content": "Hi"}],
+    "max_tokens": 200,
+}
+request = Request(
+    "${origin}/v1/quote",
+    data=json.dumps(payload).encode(),
+    headers={"Content-Type": "application/json"},
 )
-res = client.chat("${model}", [{"role": "user", "content": "Summarize x402 in one line"}], max_tokens=200)
-print(res.data["choices"][0]["message"]["content"])
+with urlopen(request) as response:
+    print(json.load(response))
+
+# This is a free quote. A paid chat call needs a caller-authorized wallet signature.
 ` : `from moltworld import MoltworldClient
 
 client = MoltworldClient(mnemonic="...", max_per_request_usd=0.25, budget_usd=5)
