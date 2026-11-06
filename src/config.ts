@@ -18,6 +18,9 @@ export const ROBINHOOD_MAINNET_CAIP2 = "eip155:4663";
 export const ROBINHOOD_TESTNET_CAIP2 = "eip155:46630";
 export const WIF_MAINNET_TOKEN_ADDRESS = "0x5173b8eA6923c2d40267890D45C46a3480954773";
 export const WIF_MAINNET_PAIR_ADDRESS = "0x71ef4106340f0a3b9c19ec994eef4fc44a1d2513f38faac39d7636b156548c79";
+export const ROBINHOOD_V4_STATE_VIEW_ADDRESS = "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b";
+export const ROBINHOOD_CHAINLINK_ETH_USD_FEED_ADDRESS = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9";
+export const ROBINHOOD_CHAINLINK_ETH_USD_FEED_HEARTBEAT_SECONDS = 86_400;
 
 // Default Algorand testnet payTo address for the legacy/test configuration.
 const DEFAULT_TESTNET_PAYTO = "TQWEL54TCBYH3QJLN2OU2QH7XZTHRDZMF2YQIU5B7W2HK6GS7I2TWHDMXU";
@@ -40,7 +43,8 @@ export interface GatewayConfig {
   usdcAsaId: string;
   payToAddress: string;
   robinhoodRpcUrl: string;
-  wifPriceUrl: string;
+  /** Verified Uniswap v4 PoolId (bytes32), not a pool contract address. */
+  wifPoolId: string;
   wifPriceMinLiquidityUsd: number;
   wifPriceHaircutBps: number;
   algodUrl: string;
@@ -106,6 +110,7 @@ function num(name: string, fallback: number): number {
 const robinhoodRpcUrl = process.env.ROBINHOOD_RPC_URL?.trim() || (robinhoodNetwork === "mainnet"
   ? "https://rpc.mainnet.chain.robinhood.com"
   : "https://rpc.testnet.chain.robinhood.com");
+const wifPoolId = process.env.WIF_POOL_ID?.trim() || (robinhoodNetwork === "mainnet" ? WIF_MAINNET_PAIR_ADDRESS : "");
 
 const vercelDomain = process.env.VERCEL_URL?.trim().replace(/^https?:\/\//i, "");
 const vercelPublicUrl = vercelDomain ? `https://${vercelDomain}` : "";
@@ -133,9 +138,7 @@ export const config: GatewayConfig = {
   usdcAsaId: isMainnet ? USDC_MAINNET_ASA_ID : USDC_TESTNET_ASA_ID,
   payToAddress,
   robinhoodRpcUrl,
-  wifPriceUrl: process.env.WIF_PRICE_URL?.trim() || (robinhoodNetwork === "mainnet"
-    ? `https://api.dexscreener.com/latest/dex/pairs/robinhood/${WIF_MAINNET_PAIR_ADDRESS}`
-    : ""),
+  wifPoolId,
   wifPriceMinLiquidityUsd: num("WIF_PRICE_MIN_LIQUIDITY_USD", 25000),
   wifPriceHaircutBps: num("WIF_PRICE_HAIRCUT_BPS", 500),
   algodUrl: process.env.ALGOD_URL?.trim() || (isMainnet ? "https://mainnet-api.algonode.cloud" : "https://testnet-api.algonode.cloud"),
@@ -177,7 +180,8 @@ export function assertProductionConfig(cfg: GatewayConfig = config): void {
     if (!cfg.publicDomain.startsWith("https://")) missing.push("PUBLIC_DOMAIN must be the new HTTPS deployment URL before mainnet startup");
     if (!cfg.payToAddress) missing.push("EVM_ADDRESS");
     if (!cfg.paymentAssetAddress) missing.push("WIF_TOKEN_ADDRESS");
-    if (!cfg.wifPriceUrl) missing.push("WIF_PRICE_URL");
+    if (!cfg.wifPoolId) missing.push("WIF_POOL_ID");
+    if (cfg.wifPoolId && !/^0x[0-9a-fA-F]{64}$/.test(cfg.wifPoolId)) missing.push("WIF_POOL_ID must be a 32-byte Uniswap v4 PoolId");
     if (cfg.payToAddress && !/^0x[0-9a-fA-F]{40}$/.test(cfg.payToAddress)) missing.push("EVM_ADDRESS must be a 20-byte EVM address");
     if (cfg.paymentAssetAddress && !/^0x[0-9a-fA-F]{40}$/.test(cfg.paymentAssetAddress)) missing.push("WIF_TOKEN_ADDRESS must be a 20-byte EVM address");
     if (cfg.payToAddress && cfg.paymentAssetAddress && cfg.payToAddress.toLowerCase() === cfg.paymentAssetAddress.toLowerCase()) {

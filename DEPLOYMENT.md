@@ -13,7 +13,7 @@ Keep the original Algorand site running until the new Robinhood deployment has p
 - Merchant `payTo`: `0xdfF3eC4B06e39BCE04Ece791D2372C03b8AAC78a`.
 - The WIF contract address identifies the asset; `payTo` identifies your receiving wallet. The receiving address was found on Robinhood Chain Blockscout as a non-contract account. These values must never be swapped.
 - Default x402 facilitator: `https://x402.primer.systems`; production startup must verify that its supported-network response includes Robinhood Chain and the configured exact/Permit2 flow.
-- Live price source: the configured Robinhood WIF pool through DexScreener, with GeckoTerminal as a fallback for that exact same pool. This is off-chain market data, not an oracle. Calls are coalesced and cached for 15 seconds; a validated prior snapshot can be reused for at most 60 seconds during a temporary outage. Low-liquidity, inactive, malformed, and older data are rejected.
+- Live price source: Uniswap v4 StateView reads the exact WIF/ETH PoolId on Robinhood Chain and combines that spot state with Chainlink's on-chain ETH/USD feed. The adapter checks chain ID, latest-block age, Chainlink's published 24-hour heartbeat, and active liquidity. Identical reads are coalesced and cached for five seconds; RPC/oracle failures fail closed and never reuse an expired snapshot. A swap in the last five minutes is not required because the current pool state is read directly from chain.
 
 ## Secrets and managed services required
 
@@ -28,7 +28,7 @@ Add the following only in Render's environment settings or secure secret store; 
 | `REDIS_URL` | Recommended before scaling beyond one app instance, because replay locks and concurrent spend reservations are shared through Redis. |
 | `FACILITATOR_URL` | Optional override if not using the documented Primer facilitator. |
 
-Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, and `WIF_TOKEN_ADDRESS` exactly as in `.env.example`. Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app`. The Vercel rewrite target is the fixed Render hostname; if either hostname changes, update the Vercel route and Render `PUBLIC_DOMAIN` together. Render's free web service may sleep when idle, so allow its first request to wake it.
+Set the public values `PAYMENT_CHAIN=robinhood`, `ROBINHOOD_NETWORK=mainnet`, `EVM_ADDRESS`, `WIF_TOKEN_ADDRESS`, and `WIF_POOL_ID` exactly as in `.env.example`. Keep `MOCK_PROVIDERS=false` and `SKIP_UPSTREAM_VERIFICATION=false`. Set Render `PUBLIC_DOMAIN=https://motoworld-wif.vercel.app`. The Vercel rewrite target is the fixed Render hostname; if either hostname changes, update the Vercel route and Render `PUBLIC_DOMAIN` together. Render's free web service may sleep when idle, so allow its first request to wake it.
 
 ## Build and run commands
 

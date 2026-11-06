@@ -18,7 +18,7 @@ The backend only needs the public recipient address. **Never provide or commit a
 ## Current payment flow
 
 1. The gateway validates a chat request and computes its USD quote before issuing an x402 challenge.
-2. A guarded live WIF/USD price snapshot is converted to an exact 18-decimal token amount using integer arithmetic. DexScreener is primary and GeckoTerminal is a same-pool fallback. Requests are coalesced and cached for 15 seconds; only a previously validated snapshot up to 60 seconds old may be reused during a brief provider outage. Invalid, inactive, low-liquidity, or older quotes fail closed.
+2. A guarded live WIF/USD price snapshot is derived from the exact Robinhood Uniswap v4 PoolId using StateView plus the on-chain Chainlink ETH/USD feed, then converted to an exact 18-decimal amount with integer arithmetic. The adapter checks chain ID, latest-block freshness, the oracle heartbeat, and active liquidity. Identical reads are coalesced and cached for five seconds; RPC/oracle failures never fall back to a stale price.
 3. The challenge names Robinhood Chain (`eip155:4663` on mainnet), the WIF ERC-20 contract, the receiving wallet, the exact raw amount, and Permit2 transfer metadata.
 4. A connected wallet authorizes the x402 payment; the facilitator verifies and settles it to the configured recipient.
 5. The gateway verifies that chain, token, recipient, and amount still match the quote; it records the payment and signs a receipt containing the exact token amount and the USD quote.

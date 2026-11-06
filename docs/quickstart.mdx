@@ -14,7 +14,7 @@ You need a supported EVM wallet, WIF for the quoted payment, and a small amount 
     Open the [Moltworld Playground](https://motoworld-wif.vercel.app/playground), connect an injected or WalletConnect wallet, and switch to Robinhood Chain mainnet (`eip155:4663`).
   </Step>
   <Step title="Choose a chat model and quote">
-    Submit a chat body to get a free quote. The quote shows the USD estimate and the exact WIF amount derived from the guarded live price snapshot.
+    Submit a chat body to get a free quote. The quote shows the USD estimate and exact WIF amount derived from the live Robinhood Uniswap v4 pool state and Chainlink ETH/USD feed, with chain freshness and active-liquidity checks.
 
     ```bash
     curl -s https://motoworld-wif.vercel.app/v1/quote \
