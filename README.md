@@ -11,7 +11,7 @@ These are different kinds of addresses and must not be interchanged:
 | Setting | Value | Purpose |
 | --- | --- | --- |
 | WIF token contract (`WIF_TOKEN_ADDRESS`) | `0x5173b8eA6923c2d40267890D45C46a3480954773` | ERC-20 asset paid by users; 18 decimals |
-| Merchant recipient (`EVM_ADDRESS`) | `0x0cbF84496640E7441eF743f8F03189Aa8C0B8cb6` | Your wallet; x402 settlements are sent here |
+| Merchant recipient (`EVM_ADDRESS`) | `0xdfF3eC4B06e39BCE04Ece791D2372C03b8AAC78a` | Your wallet; x402 settlements are sent here |
 
 The backend only needs the public recipient address. **Never provide or commit a seed phrase or private key.** A user connects a supported EVM wallet and authorizes a WIF payment. First use may require an exact ERC-20 approval to Permit2; that separate approval transaction consumes native ETH for gas. The x402 payment itself is in WIF.
 

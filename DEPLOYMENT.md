@@ -10,7 +10,7 @@ Keep the original Algorand site running until the new Robinhood deployment has p
 
 - Chain: Robinhood Chain mainnet, chain ID `4663`, CAIP-2 `eip155:4663`.
 - WIF ERC-20: `0x5173b8eA6923c2d40267890D45C46a3480954773` (18 decimals).
-- Merchant `payTo`: `0x0cbF84496640E7441eF743f8F03189Aa8C0B8cb6`.
+- Merchant `payTo`: `0xdfF3eC4B06e39BCE04Ece791D2372C03b8AAC78a`.
 - The WIF contract address identifies the asset; `payTo` identifies your receiving wallet. The receiving address was found on Robinhood Chain Blockscout as a non-contract account. These values must never be swapped.
 - Default x402 facilitator: `https://x402.primer.systems`; production startup must verify that its supported-network response includes Robinhood Chain and the configured exact/Permit2 flow.
 - Live price source: the configured Robinhood WIF pool through DexScreener, with GeckoTerminal as a fallback for that exact same pool. This is off-chain market data, not an oracle. Calls are coalesced and cached for 15 seconds; a validated prior snapshot can be reused for at most 60 seconds during a temporary outage. Low-liquidity, inactive, malformed, and older data are rejected.
