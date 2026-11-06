@@ -276,6 +276,7 @@ export function quoteWidget(): string {
             <button class="btn btn-ghost" type="button" id="challengeBtn">402 response</button>
           </div>
         </form>
+        <div class="card pg-out hidden" aria-live="polite" id="runOut"></div>
         <div class="card pg-out" aria-live="polite" id="quoteOut"></div>
       </div>
       <div class="code-card" style="margin-top:16px">

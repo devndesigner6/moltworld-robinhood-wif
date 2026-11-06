@@ -296,7 +296,7 @@ export const SITE_JS = String.raw`
   if (quoteForm) {
     const payConfig = (() => { const n = $("payConfig"); return n ? JSON.parse(n.textContent) : null; })();
     const MODELS = catalogData();
-    const qModel = $("qModel"), out = $("quoteOut");
+    const qModel = $("qModel"), out = $("quoteOut"), runOut = $("runOut");
     for (const modality of ["chat", "image", "voice", "video"]) {
       const group = el("optgroup", { label: modality[0].toUpperCase() + modality.slice(1) });
       for (const m of MODELS.filter((x) => x.modality === modality)) group.append(el("option", { value: m.slug, text: m.name + " (from " + m.from + ")" }));
@@ -350,7 +350,7 @@ export const SITE_JS = String.raw`
       renderSnippets();
     }
     // Every render bumps the sequence, so a slow response never overwrites newer output.
-    let seq = 0, debounce = 0;
+    let quoteSeq = 0, runSeq = 0, debounce = 0;
     const autoQuote = () => { clearTimeout(debounce); debounce = setTimeout(() => quote(false), 350); };
     qModel.addEventListener("change", syncForm);
     quoteForm.addEventListener("input", () => { renderSnippets(); autoQuote(); });
@@ -359,11 +359,11 @@ export const SITE_JS = String.raw`
 
     async function quote(fromButton) {
       clearTimeout(debounce);
-      const m = current(), btn = $("quoteBtn"), mine = ++seq;
+      const m = current(), btn = $("quoteBtn"), mine = ++quoteSeq;
       if (fromButton) { btn.disabled = true; out.replaceChildren(); }
       try {
         const { res, body } = await api("/v1/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: m.slug, ...bodyFor(m) }) });
-        if (mine !== seq) return;
+        if (mine !== quoteSeq) return;
         if (!res.ok) { $("runPrice").textContent = ""; out.replaceChildren(errorBox((body && body.error && body.error.message) || "Quote failed")); return; }
         const q = body.quote, u = q.units;
         $("runPrice").textContent = q.formattedPrice;
@@ -373,18 +373,18 @@ export const SITE_JS = String.raw`
           el("div", { class: "big-price", text: q.formattedPrice }),
           kv([["Payment amount", q.amountAtomic ? fmtTokenAtomic(q.amountAtomic, q.assetDecimals, q.assetSymbol) : undefined], ["Units", units], ["Upstream cost", "$" + q.upstreamCostUsd.toFixed(6) + " (" + q.costSource + ")"], ["Margin", q.marginPercent + "%"], ["Quoted USD micro-units", String(q.microUsdc)], ["Endpoint", "POST " + body.endpoint]])
         );
-      } catch { if (mine === seq) out.replaceChildren(errorBox("Network error.")); } finally { btn.disabled = false; }
+      } catch { if (mine === quoteSeq) out.replaceChildren(errorBox("Network error.")); } finally { btn.disabled = false; }
     }
     quoteForm.addEventListener("submit", (e) => { e.preventDefault(); quote(true); });
     quote(false);
 
     $("challengeBtn").addEventListener("click", async () => {
       clearTimeout(debounce);
-      const m = current(), btn = $("challengeBtn"), mine = ++seq;
+      const m = current(), btn = $("challengeBtn"), mine = ++quoteSeq;
       btn.disabled = true;
       try {
         const res = await fetch(m.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFor(m)) });
-        if (mine !== seq) return;
+        if (mine !== quoteSeq) return;
         const header = res.headers.get("payment-required");
         if (res.status !== 402 || !header) {
           let msg = "HTTP " + res.status; try { const b = await res.json(); msg = (b.error && b.error.message) || msg; } catch {}
@@ -401,7 +401,7 @@ export const SITE_JS = String.raw`
           kv([["Scheme", a.scheme], ["Network", a.network], ["Asset", a.asset], ["Quoted USD", a.extra && a.extra.quotedUsdMicro ? fmtMicro(a.extra.quotedUsdMicro) : undefined], ["Pay to", a.payTo], ["Flow", (a.extra && a.extra.paymentFlow) || "authorization"], ["Fee payer", a.extra && a.extra.feePayer]]),
           el("pre", { class: "code", style: "margin-top:16px" }, el("code", { text: JSON.stringify(required, null, 2) }))
         );
-      } catch { out.replaceChildren(errorBox("Network error.")); } finally { btn.disabled = false; }
+      } catch { if (mine === quoteSeq) out.replaceChildren(errorBox("Network error.")); } finally { btn.disabled = false; }
     });
 
     // -------------------------------------------------------------- paid runs (real x402 payments)
@@ -516,7 +516,11 @@ export const SITE_JS = String.raw`
       $("mandateOff").addEventListener("click", () => { mandate = null; mandateKey = undefined; $("mandateCred").value = ""; $("mandateEntry").classList.remove("hidden"); $("mandateActive").classList.add("hidden"); });
     }
 
-    const status = (text) => out.replaceChildren(el("div", { class: "run-status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text));
+    const showRunOutput = (...nodes) => {
+      runOut.classList.remove("hidden");
+      runOut.replaceChildren(...nodes);
+    };
+    const status = (text) => showRunOutput(el("div", { class: "run-status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text));
     function renderResult(m, data) {
       const box = el("div", { class: "run-result" });
       if (m.modality === "chat") box.append(el("div", { class: "answer-text", text: data.choices && data.choices[0] ? data.choices[0].message.content : JSON.stringify(data) }));
@@ -534,23 +538,23 @@ export const SITE_JS = String.raw`
     }
 
     $("runBtn").addEventListener("click", async () => {
-      if (!payConfig || !document.body.dataset.paySrc) { out.replaceChildren(errorBox("Paid runs are unavailable on this deployment.")); return; }
-      const m = current(), btn = $("runBtn"), mine = ++seq, cap = Number($("capInput").value) || 1;
+      if (!payConfig || !document.body.dataset.paySrc) { showRunOutput(errorBox("Paid runs are unavailable on this deployment.")); return; }
+      const m = current(), btn = $("runBtn"), mine = ++runSeq, cap = Number($("capInput").value) || 1;
       clearTimeout(debounce);
       let payer;
       if (mode === "mandate") {
-        if (!mandate) { $("mandateCred").focus(); out.replaceChildren(errorBox("Add a mandate credential to pay.")); return; }
+        if (!mandate) { $("mandateCred").focus(); showRunOutput(errorBox("Add a mandate credential to pay.")); return; }
         payer = { mandate, agentKey: mandateKey };
       } else {
-        if (!wallets || !wallets.address) { await loadWallets().catch(() => {}); out.replaceChildren(errorBox("Connect a wallet to pay.")); return; }
+        if (!wallets || !wallets.address) { await loadWallets().catch(() => {}); showRunOutput(errorBox("Connect a wallet to pay.")); return; }
         const signer = wallets.signer();
         if (payConfig.paymentChain === "robinhood") {
           payer = {
             evmSigner: signer,
-            ensureEvmAllowance: async ({ asset, amount }) => wallets.ensureEvmAllowance(asset, amount, (message) => { if (mine === seq) status(message); }),
+            ensureEvmAllowance: async ({ asset, amount }) => wallets.ensureEvmAllowance(asset, amount, (message) => { if (mine === runSeq) status(message); }),
           };
         } else {
-          payer = { signer: { address: signer.address, signTransactions: async (txns, idx) => { if (mine === seq) status("Approve the payment in your wallet"); const signed = await signer.signTransactions(txns, idx); if (mine === seq) status("Settling on Algorand"); return signed; } } };
+          payer = { signer: { address: signer.address, signTransactions: async (txns, idx) => { if (mine === runSeq) status("Approve the payment in your wallet"); const signed = await signer.signTransactions(txns, idx); if (mine === runSeq) status("Settling on Algorand"); return signed; } } };
         }
       }
       btn.disabled = true;
@@ -559,19 +563,19 @@ export const SITE_JS = String.raw`
         const mod = await loadPay();
         const client = mod.createClient(cfg(), payer, cap);
         const result = await client.call(m.endpoint, bodyFor(m));
-        if (mine !== seq) return;
-        out.replaceChildren(renderResult(m, result.data), renderReceipt(result));
+        if (mine !== runSeq) return;
+        showRunOutput(renderResult(m, result.data), renderReceipt(result));
         if (m.modality === "video" && result.data && result.data.id) {
           const job = await client.waitForJob(result.data.id, { intervalMs: 3000 });
-          if (mine !== seq) return;
-          const slot = out.querySelector(".run-result");
+          if (mine !== runSeq) return;
+          const slot = runOut.querySelector(".run-result");
           slot.replaceChildren(job.status === "completed" ? el("video", { controls: "", src: job.video_url }) : errorBox("Video failed" + (job.refund ? "; refund " + job.refund.status : "")));
         }
         if (mode === "wallet") refreshWallet();
         if (mode === "mandate") useMandate(JSON.stringify(mandate), mandateKey);
       } catch (err) {
         const msg = (err && err.message) || "Payment failed";
-        if (mine === seq) out.replaceChildren(errorBox(/maxAmountPerPayment/.test(msg) ? "Costs more than your max per request ($" + cap + ")." : msg));
+        if (mine === runSeq) showRunOutput(errorBox(/maxAmountPerPayment/.test(msg) ? "Costs more than your max per request ($" + cap + ")." : msg));
       } finally { btn.disabled = false; }
     });
   }
