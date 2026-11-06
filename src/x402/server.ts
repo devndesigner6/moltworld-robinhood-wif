@@ -136,6 +136,7 @@ export function buildX402Routes(registry: ModelRegistry): RoutesConfig {
         maxTimeoutSeconds: model.modality === "chat" ? 120 : 300,
         extra: { tag: "x402-global-challenge", ...(flow === "upfront" ? { paymentFlow: "upfront" } : {}) },
       },
+      resource: `${config.publicDomain}${getModelEndpoint(model)}`,
       description: getModelDiscoveryDescription(model),
       mimeType: "application/json",
       serviceName: "Moltworld",

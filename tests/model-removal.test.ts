@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/application.js";
-import { INITIAL_MODELS } from "../src/models/registry.js";
+import { config } from "../src/config.js";
+import { defaultModelRegistry, INITIAL_MODELS } from "../src/models/registry.js";
 import { buildX402Routes } from "../src/x402/server.js";
 import { ModelRegistry } from "../src/models/registry.js";
 
@@ -14,6 +15,12 @@ describe("removed model surfaces", () => {
     for (const slug of [...removedImages, ...removedVideos]) {
       expect(Object.keys(routes).some(route => route.includes(`/models/${slug}/`))).toBe(false);
     }
+  });
+
+  it("advertises the configured public URL for model payment challenges", () => {
+    const routes = buildX402Routes(defaultModelRegistry);
+    const route = routes["POST /v1/models/gpt-4o/chat/completions"];
+    expect(route?.resource).toBe(`${config.publicDomain}/v1/models/gpt-4o/chat/completions`);
   });
 
   it("returns 404 without payment challenges for every removed endpoint", async () => {
