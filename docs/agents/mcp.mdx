@@ -8,15 +8,15 @@ Moltworld works with any agent that speaks the [Model Context Protocol](https://
 | | Remote server | Local server |
 | --- | --- | --- |
 | Address | `https://motoworld-wif.vercel.app/mcp` (streamable HTTP) | Repository build from `sdk/js/src/mcp.ts` (stdio; mandate path is not an npm release yet) |
-| Holds a wallet | No | A delegated session key; the experimental EIP-1271 mandate is read and enforced on-chain |
-| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | Use x402 WIF payments from a compatible stdio-MCP host after an owner arms a mandate |
+| Holds a wallet | No | A dedicated development EOA or prototype session key; neither is a production user mandate |
+| The agent can | Discover chat models, request quotes, relay caller-signed chat, and read spend metadata | Run experimental local signer code only; not production-ready for unattended WIF payments |
 | Best for | A separate wallet service or caller approval | Agent-hosted signing; the owner's wallet key is never given to the agent |
 
-The live WIF model surface is chat-only. The owner-driven setup page at `https://motoworld-wif.vercel.app/products/mandates` can deploy, fund, arm, inspect, revoke, and withdraw from a real Robinhood mainnet policy wallet. This is an experimental, unaudited beta; the custom EIP-1271 mandate has not completed a real paid settlement through the live facilitator. Use only a small test balance. Image, speech, video, automatic refunds, and marketplace payouts are not enabled. The remote server never holds a wallet or signs; only a local stdio client can use the separately generated session key.
+The live WIF model surface is chat-only. The remote MCP is keyless and supports model discovery, quotes, caller-signed chat relay, and spend metadata; it cannot initiate or pay autonomously. The owner-driven setup page at `https://motoworld-wif.vercel.app/products/mandates` can deploy, fund, arm, inspect, revoke, and withdraw from a real Robinhood mainnet policy wallet. This is an experimental, unaudited beta; custom EIP-1271 mandate settlement through the live facilitator has not been proven. Use only a small test balance. Image, speech, video, automatic refunds, and marketplace payouts are not enabled. Only a local stdio client can use the separately generated session key.
 
 ## Local development EOA server
 
-The direct local EOA mode below is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The separate EIP-1271 session-mandate prototype is described below; it also remains undeployed, unaudited, and not production-ready. Until that prototype has been independently reviewed and deployed through a user-wallet flow, use the remote caller-signed relay below for live requests.
+The direct local EOA mode below is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The separate EIP-1271 session-mandate beta is described below; it is unaudited and not production-verified. Use the remote caller-signed relay for live requests unless you explicitly accept the experimental mandate risk and use only a small test amount.
 
 Generate a dedicated disposable EVM key. The command prints only its derived address; the secret is saved with mode `0600`.
 
@@ -42,7 +42,7 @@ Configure the local server with:
 | `MOLTWORLD_URL` | `https://motoworld-wif.vercel.app` | WIF gateway address |
 | `MOLTWORLD_MAX_PER_REQUEST_USD` | `0.50` | Local refusal cap before signing |
 | `MOLTWORLD_BUDGET_USD` | `5` | Local session budget; not an on-chain cap |
-| `MOLTWORLD_PAYMENT_TO` | gateway health `pay_to` | Optional expected receiving address; mismatches are refused |
+| `MOLTWORLD_PAYMENT_TO` | gateway health `pay_to` | Expected receiving address; optional guard for EOA mode, required for mandate mode |
 | `MOLTWORLD_EVM_KEY_ROLE` | | Must be `dedicated`; master/primary keys are refused |
 | `MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY` | | Exact acknowledgement shown above; local development only |
 | `MOLTWORLD_WIF_MANDATE_ADDRESS` | | Owner-deployed experimental Robinhood mandate contract |
@@ -51,7 +51,7 @@ Configure the local server with:
 
 The SDK checks the WIF allowance to the canonical Permit2 contract with read-only RPC before signing. If it is insufficient, it refuses without sending an approval transaction. Approve the exact required WIF amount to Permit2 explicitly first; the approval transaction needs native ETH for gas.
 
-Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). Tools include `moltworld_models`, `moltworld_quote`, `moltworld_chat`, `moltworld_spend`, and gated marketplace tools. Marketplace calls return unavailable until the operator enables that still-incomplete surface.
+Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). The live remote MCP supports model discovery, quote requests, caller-signed chat relay, and spend metadata. Marketplace routes are disabled on WIF and are not a usable listing or payout service.
 
 ## Experimental on-chain WIF mandate
 
@@ -86,15 +86,19 @@ npx -y -p moltworld-sdk moltworld-mcp
 { "mcpServers": { "moltworld": { "type": "http", "url": "https://motoworld-wif.vercel.app/mcp" } } }
 ```
 
-In WIF mode the remote server exposes `list_models`, `quote_request`, `chat`, `spend`, and caller-signed marketplace relay tools. Marketplace routes are disabled by default and return unavailable before payment. The `chat` and marketplace tools relay the caller's `Payment-Signature`; the remote server never holds a key, signs, approves Permit2, or pays. Remote spend information describes the payment rail; it is not an on-chain cap.
+In WIF mode the remote server exposes model discovery, quote requests, chat relay, and spend metadata. Marketplace relay routes are staged but disabled and do not provide WIF listings or creator payouts. The server never holds a key, signs, approves Permit2, or pays. Remote spend information describes the payment rail; it is not an on-chain cap.
 
 The legacy Algorand remote surface continues to expose its 402, signed-request, receipt, and job helpers.
 
 ## Framework guides
 
 <CardGroup cols={2}>
-  <Card title="OpenClaw" href="/agents/openclaw" />
-  <Card title="Hermes Agent" href="/agents/hermes" />
-  <Card title="Claude Code" href="/agents/claude-code" />
-  <Card title="A2A" href="/agents/a2a" />
+  <Card title="OpenClaw" href="/agents/openclaw">
+  </Card>
+  <Card title="Hermes Agent" href="/agents/hermes">
+  </Card>
+  <Card title="Claude Code" href="/agents/claude-code">
+  </Card>
+  <Card title="A2A" href="/agents/a2a">
+  </Card>
 </CardGroup>

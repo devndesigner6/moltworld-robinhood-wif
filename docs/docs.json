@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Moltworld",
-  "description": "Chat models paid per request in WIF on Robinhood Chain through x402; legacy Algorand docs are labeled separately.",
+  "description": "Per-call AI chat payments in WIF on Robinhood Chain, with x402 quotes, wallet-authorized settlement, and signed receipts.",
   "colors": {
     "primary": "#0E9F66",
     "light": "#3DDC97",
@@ -11,7 +11,7 @@
   "logo": {
     "light": "/logo/logo.png",
     "dark": "/logo/logo.png",
-    "href": "https://moltworld.xyz"
+    "href": "https://motoworld-wif.vercel.app"
   },
   "favicon": "/favicon.png",
   "appearance": {
@@ -20,18 +20,18 @@
   "navbar": {
     "links": [
       {
-        "label": "Models",
-        "href": "https://moltworld.xyz/models"
+        "href": "https://motoworld-wif.vercel.app",
+        "label": "Website"
       },
       {
         "label": "GitHub",
-        "href": "https://github.com/hackcat29/moltworld-x402"
+        "href": "https://github.com/devndesigner6/moltworld-x402-gateway"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Playground",
-      "href": "https://moltworld.xyz/playground"
+      "label": "Open Playground",
+      "href": "https://motoworld-wif.vercel.app/playground"
     }
   },
   "navigation": {
@@ -51,22 +51,22 @@
             "pages": [
               "concepts/how-payment-works",
               "concepts/pricing",
-              "concepts/refunds-and-rebates",
               "concepts/receipts",
-              "concepts/models"
+              "concepts/models",
+              "concepts/refunds-and-rebates"
             ]
           },
           {
-            "group": "Legacy Algorand products",
+            "group": "Legacy features",
             "pages": [
               "products/mandates",
-              "products/marketplace"
+              "products/marketplace",
+              "guides/video-jobs"
             ]
           },
           {
             "group": "Guides",
             "pages": [
-              "guides/video-jobs",
               "guides/verify-receipts",
               "guides/handle-errors"
             ]
@@ -77,7 +77,7 @@
         "tab": "Agents",
         "groups": [
           {
-            "group": "Connect an agent",
+            "group": "Agent integrations",
             "pages": [
               "agents/mcp",
               "agents/openclaw",
@@ -112,11 +112,9 @@
             ]
           },
           {
-            "group": "Models",
+            "group": "Chat",
             "pages": [
-              "api-reference/endpoints/chat",
-              "api-reference/endpoints/images",
-              "api-reference/endpoints/speech"
+              "api-reference/endpoints/chat"
             ]
           },
           {
@@ -127,26 +125,23 @@
             ]
           },
           {
-            "group": "Jobs and receipts",
+            "group": "Receipts",
             "pages": [
-              "api-reference/endpoints/get-job",
               "api-reference/endpoints/get-receipt",
               "api-reference/endpoints/receipt-keys"
             ]
           },
           {
-            "group": "Mandates",
+            "group": "Unavailable on WIF",
             "pages": [
+              "api-reference/endpoints/images",
+              "api-reference/endpoints/speech",
+              "api-reference/endpoints/get-job",
               "api-reference/endpoints/draft-mandate",
               "api-reference/endpoints/register-mandate",
               "api-reference/endpoints/get-mandate",
               "api-reference/endpoints/list-mandates",
-              "api-reference/endpoints/revoke-mandate"
-            ]
-          },
-          {
-            "group": "Marketplace",
-            "pages": [
+              "api-reference/endpoints/revoke-mandate",
               "api-reference/endpoints/list-listings",
               "api-reference/endpoints/create-listing",
               "api-reference/endpoints/call-listing",
@@ -172,8 +167,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/hackcat29/moltworld-x402",
-      "website": "https://moltworld.xyz"
+      "github": "https://github.com/devndesigner6/moltworld-x402-gateway",
+      "website": "https://motoworld-wif.vercel.app"
     }
   },
   "seo": {

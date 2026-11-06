@@ -1,37 +1,28 @@
 ---
 title: "Hermes Agent"
-description: "Add Moltworld to Hermes Agent."
+description: "Connect Hermes to Moltworld's WIF remote MCP for chat discovery and quotes. Paid requests require a caller-side x402 signature; the server never stores a wallet key."
 ---
-> **Rail note:** Robinhood production is chat-only WIF with per-call wallet authorization. The mandate and media examples below are legacy Algorand examples and are not enabled on Robinhood.
-<Note>
-Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
-</Note>
 
+Use Hermes Agent's MCP integration to access Moltworld's live chat catalog and request WIF quotes. The hosted MCP server is keyless; it cannot authorize or settle a payment on your behalf.
 
-Hermes Agent reads MCP servers from `mcp_servers` in `~/.hermes/config.yaml`.
+## Configure MCP
+
+Hermes Agent reads MCP servers from `mcp_servers` in `~/.hermes/config.yaml`:
 
 ```yaml
 mcp_servers:
   moltworld:
-    command: npx
-    args: ["-y", "-p", "moltworld-sdk", "moltworld-mcp"]
-    env:
-      MOLTWORLD_MANDATE: "<credential>"
-      MOLTWORLD_MAX_PER_REQUEST_USD: "0.25"
-      MOLTWORLD_BUDGET_USD: "5"
-  moltworld-remote:
-    url: "https://moltworld.xyz/mcp"
+    url: "https://motoworld-wif.vercel.app/mcp"
 ```
 
-Start a new session so Hermes picks up the servers. The Moltworld tools appear with the server's name as prefix.
+Start a new session so Hermes loads the server. Moltworld tools appear under the server name.
 
-<Note>
-Config keys can change between Hermes releases. If a field is rejected, check the MCP section of the Hermes Agent docs for your version.
-</Note>
+<Warning>
+Discovery and quotes do not require a wallet. A paid chat call needs a valid caller-generated x402 `Payment-Signature`. The remote MCP integration does not provide an autonomous spending mandate. Never place a seed phrase or master private key in the agent configuration.
+</Warning>
 
-## Good uses
+## Use it
 
-- **Model escalation.** Let Hermes run on a small local model and send hard questions to a larger one through `moltworld_chat`, paying only when it does.
-- **Media.** Images and voice that the agent's own model can't produce.
+Ask Hermes to list live chat models or request a free WIF quote for a proposed chat body. Review the exact quote before arranging a caller-signed payment. See [MCP and agents](/agents/mcp) for the remote tool contract and payment handoff.
 
-See the [use cases](https://moltworld.xyz/use-cases) for full examples.
+The WIF deployment currently supports chat only. Media calls, marketplace payouts, and autonomous mandates are not enabled.

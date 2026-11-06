@@ -1,32 +1,24 @@
 ---
 title: "Claude Code"
-description: "Add Moltworld to Claude Code."
+description: "Connect Claude Code to Moltworld's WIF remote MCP for chat discovery and quotes. Paid calls require a caller-generated x402 signature; the MCP server never holds a key."
 ---
-> **Rail note:** Robinhood production is chat-only WIF with per-call wallet authorization. The mandate and media examples below are legacy Algorand examples and are not enabled on Robinhood.
-<Note>
-Paying under a mandate needs the agent's own key. Run `npx -y -p moltworld-sdk moltworld-mcp keygen` once where the agent runs and give the printed address to the wallet owner, who binds the mandate to it. See [Spending mandates](/products/mandates).
-</Note>
 
+Connect Claude Code to Moltworld's hosted MCP server to discover available chat models and request WIF quotes. The server is keyless and does not sign payments.
 
-## Catalog and quotes
+## Add the MCP server
 
 ```bash
-claude mcp add --transport http moltworld https://moltworld.xyz/mcp
+claude mcp add --transport http moltworld https://motoworld-wif.vercel.app/mcp
 ```
 
-## Paid calls with a mandate
+Run `/mcp` inside Claude Code to check that the server is connected.
 
-```bash
-claude mcp add -e MOLTWORLD_MANDATE=<credential> -e MOLTWORLD_BUDGET_USD=5 \
-  moltworld-wallet -- npx -y -p moltworld-sdk moltworld-mcp
-```
-
-Run `/mcp` inside Claude Code to check that both servers are connected.
-
-## Plugin
-
-The repository also has a Claude Code plugin in [`plugins/moltworld`](https://github.com/hackcat29/moltworld-x402/tree/main/plugins/moltworld) that sets up the remote server.
+<Warning>
+MCP connectivity does not grant an agent a wallet. A paid chat call requires a valid caller-generated x402 `Payment-Signature`; the remote server cannot create it. Do not put a seed phrase or master private key in Claude Code configuration.
+</Warning>
 
 ## Try it
 
-> Generate a product image of a ceramic mug with gpt-image-1.5 and save it to ./assets.
+Ask Claude Code to list the live chat models or request a free quote for a chat request. For paid calls, use a caller-side x402 EVM signer and review the exact WIF terms before signing. See [MCP and agents](/agents/mcp) for the supported tool contract.
+
+The WIF deployment currently supports chat only. Autonomous mandates, media generation, and creator payouts are not enabled.

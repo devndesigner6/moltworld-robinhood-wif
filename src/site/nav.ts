@@ -131,8 +131,10 @@ export function navMenus(): NavMenu[] {
           links: config.paymentChain === "robinhood"
             ? [
                 { label: "WIF Quickstart", href: "/quickstart", icon: "bolt" },
-                { label: "API overview", href: "/developers", icon: "braces" },
-                { label: "JavaScript SDK", href: "/developers", icon: "package" },
+                { label: "Full documentation", href: docs, icon: "book" },
+                { label: "API reference", href: `${docs}/api-reference/introduction`, icon: "braces" },
+                { label: "MCP and agents", href: `${docs}/agents/mcp`, icon: "agent" },
+                { label: "SDKs", href: `${docs}/sdks/typescript`, icon: "package" },
               ]
             : [
                 { label: "Documentation", href: docs, icon: "book" },
