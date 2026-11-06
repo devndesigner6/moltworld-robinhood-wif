@@ -49,6 +49,9 @@ type Eip1193Provider = {
   request(args: { method: string; params?: unknown[] }): Promise<any>;
   on?(event: string, listener: (...args: any[]) => void): void;
   removeListener?(event: string, listener: (...args: any[]) => void): void;
+  isMetaMask?: boolean;
+  info?: { rdns?: string };
+  providers?: Eip1193Provider[];
 };
 
 type ConnectableEip1193Provider = Eip1193Provider & {
@@ -81,7 +84,14 @@ function robinhoodChain(cfg: PayConfig) {
 }
 
 async function createEvmWallets(cfg: PayConfig): Promise<Wallets> {
-  const injectedProvider = window.ethereum;
+  const discoveredProvider = window.ethereum;
+  const injectedCandidates = discoveredProvider?.providers?.length
+    ? discoveredProvider.providers
+    : discoveredProvider ? [discoveredProvider] : [];
+  const metaMaskProvider = injectedCandidates.find((provider) => provider.isMetaMask === true || provider.info?.rdns === "io.metamask");
+  const injectedProvider = (metaMaskProvider ?? discoveredProvider) as ConnectableEip1193Provider | undefined;
+  const injectedName = metaMaskProvider ? "MetaMask" : "Browser wallet";
+  const injectedIcon = metaMaskProvider ? "/assets/wallets/metamask.png" : "";
   const chain = robinhoodChain(cfg);
   const token = cfg.paymentAssetAddress as Address;
   const publicClient = createPublicClient({ chain, transport: http(cfg.robinhoodRpcUrl) });
@@ -162,7 +172,7 @@ async function createEvmWallets(cfg: PayConfig): Promise<Wallets> {
 
   return {
     options: [
-      ...(injectedProvider ? [{ id: "injected", name: "Browser wallet", icon: "" }] : []),
+      ...(injectedProvider ? [{ id: "injected", name: injectedName, icon: injectedIcon }] : []),
       ...(cfg.reownProjectId ? [{ id: "walletconnect", name: "WalletConnect (mobile wallets)", icon: "" }] : []),
     ],
     get address() { return address; },

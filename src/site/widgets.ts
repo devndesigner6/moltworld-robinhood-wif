@@ -334,11 +334,14 @@ export function statsWidget(): string {
   const tile = (id: string, label: string) => `<div><div class="v" id="${id}">-</div><div class="k">${label}</div></div>`;
   const netLabel = config.paymentChain === "robinhood" ? "Net revenue, USD quoted" : "Net revenue, USDC";
   const refundLabel = config.paymentChain === "robinhood" ? "Pending manual WIF refund reviews" : "Refunded, USDC";
+  const successLabel = config.paymentChain === "robinhood" ? "Paid completion rate" : "Success rate";
+  const settleLabel = config.paymentChain === "robinhood" ? "Avg. request → settlement" : "Average settlement";
+  const ticketLabel = config.paymentChain === "robinhood" ? "Average WIF ticket, USD quoted" : "Average ticket";
   return `
       <div class="stat-row stat-row-3" data-reveal>
         ${tile("sPaid", "Paid requests")}${tile("sNet", netLabel)}${tile("sRefunds", refundLabel)}
       </div>
       <div class="stat-row stat-row-sm stat-row-3" data-reveal>
-        ${tile("sSuccessRate", "Success rate")}${tile("sAvgLatency", "Average settlement")}${tile("sAvgTicket", "Average ticket")}
+        ${tile("sSuccessRate", successLabel)}${tile("sAvgLatency", settleLabel)}${tile("sAvgTicket", ticketLabel)}
       </div>`;
 }

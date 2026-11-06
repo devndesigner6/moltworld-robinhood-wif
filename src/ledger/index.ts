@@ -215,6 +215,10 @@ export async function mandateSpendLast24h(mandateId: string): Promise<number> {
 export interface LedgerStats {
   paidRequests: number;
   completedRequests: number;
+  onchainPaidRequests: number;
+  onchainCompletedRequests: number;
+  onchainGrossMicro: number;
+  averageRequestToSettlementMs: number | null;
   failedUncharged: number;
   refundedRequests: number;
   manualRefundReviews: number;
@@ -226,7 +230,7 @@ export interface LedgerStats {
   repeatPayers: number;
   last24hRequests: number;
   byModality: Record<string, number>;
-  recent: Array<{ id: string; model: string | null; modality: string | null; amount_micro: number; amount_atomic: string | null; asset: string; network: string; txid: string | null; created_at: Date }>;
+  recent: Array<{ id: string; model: string | null; modality: string | null; amount_micro: number; amount_atomic: string | null; asset: string; network: string; txid: string | null; created_at: Date; settled_at: Date | null }>;
 }
 
 export async function getStats(excludePayers: string[]): Promise<LedgerStats> {
@@ -236,6 +240,10 @@ export async function getStats(excludePayers: string[]): Promise<LedgerStats> {
     `SELECT
        COUNT(*) FILTER (WHERE status IN ${CHARGED_STATUSES} OR status = 'refunded') AS paid,
        COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+       COUNT(*) FILTER (WHERE txid IS NOT NULL AND status IN ('settled','completed','refund_pending','refunded')) AS onchain_paid,
+       COUNT(*) FILTER (WHERE txid IS NOT NULL AND status = 'completed') AS onchain_completed,
+       COALESCE(SUM(amount_micro) FILTER (WHERE txid IS NOT NULL AND status IN ('settled','completed','refund_pending','refunded')), 0) AS onchain_gross,
+       AVG(EXTRACT(EPOCH FROM (settled_at - created_at)) * 1000) FILTER (WHERE txid IS NOT NULL AND status = 'completed' AND settled_at IS NOT NULL) AS avg_request_settle_ms,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
        COUNT(*) FILTER (WHERE status = 'refunded') AS refunded,
        COUNT(*) FILTER (WHERE status = 'refund_pending') AS manual_refund_reviews,
@@ -259,7 +267,7 @@ export async function getStats(excludePayers: string[]): Promise<LedgerStats> {
     [ex]
   );
   const recent = await q.query<any>(
-    `SELECT id, model_slug AS model, modality, amount_micro, amount_atomic, asset, network, txid, created_at FROM mw_requests
+    `SELECT id, model_slug AS model, modality, amount_micro, amount_atomic, asset, network, txid, created_at, settled_at FROM mw_requests
      WHERE status = 'completed' AND txid IS NOT NULL AND NOT (payer = ANY($1::text[]))
      ORDER BY created_at DESC LIMIT 10`,
     [ex]
@@ -268,6 +276,10 @@ export async function getStats(excludePayers: string[]): Promise<LedgerStats> {
   return {
     paidRequests: Number(t.paid),
     completedRequests: Number(t.completed),
+    onchainPaidRequests: Number(t.onchain_paid),
+    onchainCompletedRequests: Number(t.onchain_completed),
+    onchainGrossMicro: Number(t.onchain_gross),
+    averageRequestToSettlementMs: t.avg_request_settle_ms == null ? null : Number(t.avg_request_settle_ms),
     failedUncharged: Number(t.failed),
     refundedRequests: Number(t.refunded),
     manualRefundReviews: Number(t.manual_refund_reviews),

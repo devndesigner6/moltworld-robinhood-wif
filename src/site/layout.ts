@@ -20,14 +20,16 @@ export function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
-const hash = (s: string) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 12);
+const hash = (s: string | Uint8Array) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 12);
 const JS = "text/javascript; charset=utf-8";
-const ASSETS: Record<string, { body: string; type: string; hash: string }> = {
+const ASSETS: Record<string, { body: string | Uint8Array; type: string; hash: string }> = {
   "site.css": { body: SITE_CSS, type: "text/css; charset=utf-8", hash: hash(SITE_CSS) },
   "site.js": { body: SITE_JS, type: JS, hash: hash(SITE_JS) },
   "world.js": { body: WORLD_JS, type: JS, hash: hash(WORLD_JS) },
   "flow.js": { body: FLOW_JS, type: JS, hash: hash(FLOW_JS) },
 };
+const metaMaskLogo = fs.readFileSync(new URL("../../public/assets/wallets/metamask.png", import.meta.url));
+ASSETS["wallets/metamask.png"] = { body: new Uint8Array(metaMaskLogo), type: "image/png", hash: hash(metaMaskLogo) };
 
 // Browser bundles built by `pnpm vendor` (src/site and dist/site both sit two levels below vendor/):
 // three.js, TypeGPU and the Playground's pay module, plus the chunks they import. Without them the
@@ -50,7 +52,10 @@ try {
 const asset = (name: string) => (ASSETS[name] ? `/assets/${name}?v=${ASSETS[name].hash}` : "");
 
 export function handleAsset(name: string) {
-  return (c: Context): Response => c.body(ASSETS[name].body, 200, { "Content-Type": ASSETS[name].type, "Cache-Control": "public, max-age=31536000, immutable" });
+  return (_c: Context): Response => new Response(ASSETS[name].body as BodyInit, {
+    status: 200,
+    headers: { "Content-Type": ASSETS[name].type, "Cache-Control": "public, max-age=31536000, immutable" },
+  });
 }
 export const ASSET_NAMES = Object.keys(ASSETS);
 

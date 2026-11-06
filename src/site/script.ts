@@ -697,7 +697,10 @@ export const SITE_JS = String.raw`
     const fmtUsd = (raw) => {
       if (!raw || raw === "-") return "-";
       const num = parseFloat(String(raw).replace(/[^0-9.]/g, ""));
-      return isNaN(num) ? String(raw) : "$" + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (isNaN(num)) return String(raw);
+      if (num === 0) return "$0.00";
+      const digits = Math.abs(num) >= 1 ? 2 : 6;
+      return "$" + num.toLocaleString(undefined, { minimumFractionDigits: Math.abs(num) >= 1 ? 2 : 0, maximumFractionDigits: digits });
     };
     const num = (v) => (typeof v === "number" ? v.toLocaleString() : v);
 
@@ -759,7 +762,13 @@ export const SITE_JS = String.raw`
       set("sGross", fmtUsd(s.gross_usd_quote)); set("sRebated", fmtUsd(s.rebated_usd_quote)); set("sNet", fmtUsd(s.net_revenue_usd_quote ?? s.net_revenue_usdc), true);
       set("sRefunds", body.payment_chain === "robinhood" ? num(s.pending_refund_reviews) : fmtUsd(s.refunded_usd_quote ?? s.refunded_usdc), true);
 
-      if (body.facilitator) renderFacilitator(body.facilitator);
+      if (body.payment_chain === "robinhood") {
+        if (s.success_rate != null) set("sSuccessRate", Number(s.success_rate).toFixed(2) + "%", true);
+        if (s.avg_settle_ms != null) set("sAvgLatency", num(s.avg_settle_ms) + " ms");
+        else set("sAvgLatency", "—");
+        if (s.avg_ticket_usd_quote != null) set("sAvgTicket", fmtUsd(s.avg_ticket_usd_quote), true);
+        else set("sAvgTicket", "—");
+      } else if (body.facilitator) renderFacilitator(body.facilitator);
       else if (attempt < 2) setTimeout(() => load(attempt + 1), 2500);
       else { const t = $("topModelRows"); if (t) t.replaceChildren(el("tr", {}, el("td", { colspan: "5", text: "Facilitator figures are unavailable right now." }))); }
 

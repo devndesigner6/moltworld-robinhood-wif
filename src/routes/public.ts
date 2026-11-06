@@ -308,10 +308,12 @@ export async function handleStats(c: Context): Promise<Response> {
   const fGrossMicro = f ? usdToMicroCeil(f.volume) : 0;
   const fPayers = f?.payers ?? 0;
 
-  const totalPaid = Math.max(s.paidRequests, fPaid);
-  const totalCompleted = Math.max(s.completedRequests, fPaid);
-  const totalGrossMicro = Math.max(s.grossMicro, fGrossMicro);
-  const totalNetMicro = Math.max(Math.max(0, netMicro), totalGrossMicro - s.rebatedMicro - s.refundedMicro);
+  const totalPaid = robinhood ? s.onchainPaidRequests : Math.max(s.paidRequests, fPaid);
+  const totalCompleted = robinhood ? s.onchainCompletedRequests : Math.max(s.completedRequests, fPaid);
+  const totalGrossMicro = robinhood ? s.onchainGrossMicro : Math.max(s.grossMicro, fGrossMicro);
+  const totalNetMicro = robinhood
+    ? Math.max(0, totalGrossMicro - s.refundedMicro)
+    : Math.max(Math.max(0, netMicro), totalGrossMicro - s.rebatedMicro - s.refundedMicro);
   const totalPayers = Math.max(s.uniquePayers, fPayers);
 
   return c.json({
@@ -341,9 +343,18 @@ export async function handleStats(c: Context): Promise<Response> {
       repeat_paying_wallets: s.repeatPayers,
       repeat_payer_rate: totalPayers ? Number((s.repeatPayers / totalPayers).toFixed(4)) : 0,
       completed_by_modality: s.byModality,
-      success_rate: f ? Number((f.successRate * 100).toFixed(2)) : undefined,
-      avg_settle_ms: f ? Math.round(f.avgSettleMs) : undefined,
-      avg_ticket_usd: f ? Number(f.avgTicket.toFixed(4)) : undefined,
+      success_rate: robinhood
+        ? (totalPaid ? Number((totalCompleted / totalPaid * 100).toFixed(2)) : null)
+        : f ? Number((f.successRate * 100).toFixed(2)) : undefined,
+      avg_settle_ms: robinhood
+        ? (s.averageRequestToSettlementMs === null ? null : Math.round(s.averageRequestToSettlementMs))
+        : f ? Math.round(f.avgSettleMs) : undefined,
+      avg_ticket_usd: robinhood
+        ? (totalPaid ? Number((totalGrossMicro / totalPaid / 1_000_000).toFixed(6)) : null)
+        : f ? Number(f.avgTicket.toFixed(4)) : undefined,
+      ...(robinhood ? {
+        avg_ticket_usd_quote: totalPaid ? microToUsdString(Math.round(totalGrossMicro / totalPaid)) : null,
+      } : {}),
     },
     facilitator: f
       ? {
@@ -381,10 +392,10 @@ export async function handleStats(c: Context): Promise<Response> {
       amount_usd_quote: microToUsdString(r.amount_micro),
       txid: r.txid,
       explorer_url: r.txid ? `${explorer}${r.txid}` : null,
-      at: r.created_at,
+      at: r.settled_at ?? r.created_at,
     })),
     methodology: robinhood
-      ? "Robinhood Chain settlements are counted from the gateway ledger. Token amounts are WIF base units; USD figures are quote-time estimates. Each completed request carries its on-chain txid."
+      ? "Robinhood Chain paid volume and completion metrics use gateway ledger rows with an on-chain transaction hash. Average request-to-settlement includes upstream processing time. WIF amounts are token base units; USD figures are quote-time estimates, not mark-to-market values."
       : "Counted from the gateway ledger and cross-verified with the Algorand x402 facilitator. Every settled request carries its on-chain txid, verifiable on-chain.",
     timestamp: new Date().toISOString(),
   });

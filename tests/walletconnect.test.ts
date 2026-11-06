@@ -55,4 +55,38 @@ describe("Robinhood browser wallet connectivity", () => {
     expect(requests).toEqual(["eth_requestAccounts", "eth_chainId"]);
     expect(requests.some((method) => /sign|send|approve/i.test(method))).toBe(false);
   });
+
+  it("selects MetaMask from multiple injected providers and shows its local logo", async () => {
+    const otherRequests: string[] = [];
+    const metaMaskRequests: string[] = [];
+    const other = {
+      request: async ({ method }: { method: string }) => { otherRequests.push(method); return []; },
+      on: () => undefined,
+    };
+    const metaMask = {
+      isMetaMask: true,
+      request: async ({ method }: { method: string }) => {
+        metaMaskRequests.push(method);
+        if (method === "eth_requestAccounts") return ["0x2222222222222222222222222222222222222222"];
+        if (method === "eth_chainId") return "0x1237";
+        throw new Error(`Unexpected request ${method}`);
+      },
+      on: () => undefined,
+    };
+    (globalThis as any).window = {
+      ethereum: { request: async () => [], providers: [other, metaMask] },
+    };
+
+    const wallets = await createWallets(baseConfig());
+
+    expect(wallets.options).toEqual([{
+      id: "injected",
+      name: "MetaMask",
+      icon: "/assets/wallets/metamask.png",
+    }]);
+    await wallets.connect("injected");
+    expect(wallets.address).toBe("0x2222222222222222222222222222222222222222");
+    expect(metaMaskRequests).toEqual(["eth_requestAccounts", "eth_chainId"]);
+    expect(otherRequests).toEqual([]);
+  });
 });
