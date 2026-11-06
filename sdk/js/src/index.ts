@@ -22,6 +22,10 @@ const NETWORKS = {
   testnet: ["algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDe"],
 };
 
+// Atomic cap allows at most 10,000 WIF per configured USD of per-request budget.
+// The quote-validation hook below separately enforces the exact live USD amount.
+const WIF_SPEND_CONTROL_ATOMIC_PER_USD_MICRO = 10n ** 16n;
+
 export interface AvmSigner {
   address: string;
   signTransactions(txns: Uint8Array[], indexesToSign?: number[]): Promise<(Uint8Array | null)[]>;
@@ -115,8 +119,18 @@ export class MoltworldClient {
       if (!network.startsWith("eip155:") || !/^0x[0-9a-fA-F]{40}$/.test(expectedAsset)) {
         throw new Error("Gateway health does not advertise a valid Robinhood EVM WIF payment asset.");
       }
+      const maxPerRequestUsd = this.options.maxPerRequestUsd ?? 1;
+      const maxPerRequestMicro = Math.floor(maxPerRequestUsd * 1_000_000);
+      if (!Number.isSafeInteger(maxPerRequestMicro) || maxPerRequestMicro <= 0) {
+        throw new Error("maxPerRequestUsd must be a positive, finite amount.");
+      }
+      const maxWifAmountAtomic = (BigInt(maxPerRequestMicro) * WIF_SPEND_CONTROL_ATOMIC_PER_USD_MICRO).toString();
       const client = x402Client.fromConfig({
         schemes: [{ network: network as any, client: new ExactEvmClientScheme(this.evmSigner) as any }],
+        spendControls: {
+          maxAmountPerPayment: `$${maxPerRequestUsd}`,
+          allowedAssets: [{ network: network as any, asset: expectedAsset, maxAmountPerPayment: maxWifAmountAtomic }],
+        },
       });
       client.onBeforePaymentCreation(async ({ selectedRequirements }) => {
         const extra = selectedRequirements.extra as Record<string, unknown> | undefined;
@@ -147,8 +161,8 @@ export class MoltworldClient {
         if (String(selectedRequirements.payTo).toLowerCase() !== String(this.payTo).toLowerCase()) {
           return { abort: true, reason: `Refusing to pay ${selectedRequirements.payTo}; expected ${this.payTo}.` };
         }
-        if (quotedUsdMicro > Math.floor((this.options.maxPerRequestUsd ?? 1) * 1_000_000)) {
-          return { abort: true, reason: `Costs more than your max per request ($${this.options.maxPerRequestUsd ?? 1}).` };
+        if (quotedUsdMicro > maxPerRequestMicro) {
+          return { abort: true, reason: `Costs more than your max per request ($${maxPerRequestUsd}).` };
         }
         if (this.options.budgetUsd !== undefined && this.spentMicro + quotedUsdMicro > this.options.budgetUsd * 1_000_000) {
           return { abort: true, reason: `Budget of $${this.options.budgetUsd} would be exceeded.` };
