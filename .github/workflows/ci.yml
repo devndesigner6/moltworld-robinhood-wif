@@ -50,6 +50,9 @@ jobs:
         env:
           DATABASE_URL: postgres://moltworld:moltworld@127.0.0.1:5432/moltworld_test
         run: pnpm vitest run tests/payments.e2e.test.ts --no-file-parallelism
+      - name: Compile WIF EIP-1271 prototype and verify Permit2 typed data
+        working-directory: contracts
+        run: npm run compile && npm run test:typed-data && npm run test:stateful
 
   ui:
     name: UI tests (desktop, tablet, phones; light and dark)

@@ -1,0 +1,367 @@
+import assert from "node:assert/strict";
+import { createServer } from "node:net";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import {
+  createPublicClient,
+  createWalletClient,
+  defineChain,
+  encodeAbiParameters,
+  hashTypedData,
+  http,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+// These keys are deliberately fixed, throwaway test keys. They must never hold real funds.
+const OWNER_KEY = "0x" + "1".repeat(63) + "1";
+const AGENT_KEY = "0x" + "2".repeat(63) + "2";
+const CHAIN_ID = 31337;
+const GANACHE_BALANCE = "1000000000000000000000";
+const MAGIC_VALUE = "0x1626ba7e";
+const FAILURE_VALUE = "0xffffffff";
+
+const root = dirname(dirname(new URL(import.meta.url).pathname));
+const sourceRoot = join(root, "src");
+const testRoot = join(root, "test");
+
+const permitTypes = {
+  PermitWitnessTransferFrom: [
+    { name: "permitted", type: "TokenPermissions" },
+    { name: "spender", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+    { name: "witness", type: "Witness" },
+  ],
+  TokenPermissions: [
+    { name: "token", type: "address" },
+    { name: "amount", type: "uint256" },
+  ],
+  Witness: [
+    { name: "to", type: "address" },
+    { name: "validAfter", type: "uint256" },
+  ],
+};
+
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : undefined;
+      server.close((error) => (error ? reject(error) : resolve(port)));
+    });
+  });
+}
+
+function compileContracts(outputDir) {
+  const input = {
+    language: "Solidity",
+    sources: {
+      "src/WifPermit2SessionMandate.sol": { content: readFileSync(join(sourceRoot, "WifPermit2SessionMandate.sol"), "utf8") },
+      "test/MockERC20.sol": { content: readFileSync(join(testRoot, "MockERC20.sol"), "utf8") },
+    },
+    settings: {
+      evmVersion: "shanghai",
+      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
+    },
+  };
+  const result = spawnSync(
+    "npx",
+    ["--yes", "solc@0.8.30", "--standard-json"],
+    { cwd: root, input: JSON.stringify(input), encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `solc compilation failed (exit ${result.status ?? "unknown"})\n${result.stdout}\n${result.stderr}`
+    );
+  }
+  let compiled;
+  try {
+    const jsonStart = result.stdout.indexOf("{");
+    if (jsonStart < 0) throw new Error("no JSON object found");
+    compiled = JSON.parse(result.stdout.slice(jsonStart));
+  } catch (error) {
+    throw new Error(`solc returned non-JSON output: ${error}\n${result.stdout}\n${result.stderr}`);
+  }
+  const errors = (compiled.errors ?? []).filter((error) => error.severity === "error");
+  if (errors.length > 0) throw new Error(`solc compilation errors:\n${JSON.stringify(errors, null, 2)}`);
+  const readArtifact = (source, name) => {
+    const artifact = compiled.contracts?.[source]?.[name];
+    if (!artifact) throw new Error(`solc artifact not found: ${source}:${name}`);
+    return { abi: artifact.abi, bytecode: `0x${artifact.evm.bytecode.object}` };
+  };
+  return {
+    mandate: readArtifact("src/WifPermit2SessionMandate.sol", "WifPermit2SessionMandate"),
+    token: readArtifact("test/MockERC20.sol", "MockERC20"),
+  };
+}
+
+async function waitForRpc(publicClient, process, logs) {
+  const deadline = Date.now() + 20_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (process.exitCode !== null) {
+      throw new Error(`Ganache exited before readiness (code ${process.exitCode})\n${logs()}`);
+    }
+    try {
+      const chainId = await publicClient.getChainId();
+      assert.equal(chainId, CHAIN_ID, "Ganache must expose the local test chain ID");
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error(`Ganache JSON-RPC did not become ready: ${lastError}\n${logs()}`);
+}
+
+async function stopProcess(process) {
+  if (!process || process.exitCode !== null) return;
+  try {
+    globalThis.process.kill(-process.pid, "SIGTERM");
+  } catch {
+    process.kill("SIGTERM");
+  }
+  await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (process.exitCode === null) {
+        try {
+          globalThis.process.kill(-process.pid, "SIGKILL");
+        } catch {
+          process.kill("SIGKILL");
+        }
+      }
+      resolve();
+    }, 2_000);
+    process.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+async function main() {
+  const owner = privateKeyToAccount(OWNER_KEY);
+  const agent = privateKeyToAccount(AGENT_KEY);
+  const port = await findFreePort();
+  const rpcUrl = `http://127.0.0.1:${port}`;
+  const ganacheArgs = [
+    "--yes",
+    "ganache@7.9.2",
+    "--server.host",
+    "127.0.0.1",
+    "--server.port",
+    String(port),
+    "--chain.chainId",
+    String(CHAIN_ID),
+    "--chain.hardfork",
+    "shanghai",
+    "--wallet.accounts",
+    `${OWNER_KEY},${GANACHE_BALANCE}`,
+    "--wallet.accounts",
+    `${AGENT_KEY},${GANACHE_BALANCE}`,
+    "--logging.quiet",
+  ];
+  let ganache;
+  let stdout = "";
+  let stderr = "";
+  const logs = () => `${stdout.slice(-4000)}${stderr.slice(-4000)}`;
+  const compileDir = mkdtempSync(join(tmpdir(), "wif-session-solc-"));
+
+  try {
+    ganache = spawn("npx", ganacheArgs, {
+      cwd: root,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    ganache.stdout.on("data", (chunk) => (stdout += chunk));
+    ganache.stderr.on("data", (chunk) => (stderr += chunk));
+
+    const chain = defineChain({
+      id: CHAIN_ID,
+      name: "Local Ganache Simulated EVM",
+      nativeCurrency: { name: "Test Ether", symbol: "TETH", decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    });
+    const transport = http(rpcUrl);
+    const publicClient = createPublicClient({ chain, transport });
+    const ownerWallet = createWalletClient({ account: owner, chain, transport });
+    const agentWallet = createWalletClient({ account: agent, chain, transport });
+
+    await waitForRpc(publicClient, ganache, logs);
+    const { mandate, token } = compileContracts(compileDir);
+
+    const tokenHash = await ownerWallet.deployContract({ abi: token.abi, bytecode: token.bytecode });
+    const tokenReceipt = await publicClient.waitForTransactionReceipt({ hash: tokenHash });
+    assert.ok(tokenReceipt.contractAddress, "MockERC20 deployment must return an address");
+    const tokenAddress = tokenReceipt.contractAddress;
+
+    // This EOA stands in for the Permit2 address on the simulated chain. No real Permit2
+    // contract, facilitator, network, or payment is involved in this test.
+    const permit2Address = owner.address;
+    const exactProxy = "0x0000000000000000000000000000000000001003";
+    const payTo = "0x0000000000000000000000000000000000001004";
+    const wrongProxy = "0x0000000000000000000000000000000000001005";
+
+    const mandateHash = await ownerWallet.deployContract({
+      abi: mandate.abi,
+      bytecode: mandate.bytecode,
+      args: [owner.address, tokenAddress, permit2Address, exactProxy, payTo],
+    });
+    const mandateReceipt = await publicClient.waitForTransactionReceipt({ hash: mandateHash });
+    assert.ok(mandateReceipt.contractAddress, "mandate deployment must return an address");
+    const mandateAddress = mandateReceipt.contractAddress;
+
+    const tokenSupply = 1_000n;
+    const mintHash = await ownerWallet.writeContract({
+      address: tokenAddress,
+      abi: token.abi,
+      functionName: "mint",
+      args: [mandateAddress, tokenSupply],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: mintHash });
+    assert.equal(
+      await publicClient.readContract({ address: tokenAddress, abi: token.abi, functionName: "balanceOf", args: [mandateAddress] }),
+      tokenSupply,
+      "test tokens must be funded to the mandate"
+    );
+
+    const blockBeforeArm = await publicClient.getBlock();
+    const expiry = blockBeforeArm.timestamp + 3_600n;
+    const maxPerCall = 250n;
+    const configuredAllowance = 1_000n;
+    const armHash = await ownerWallet.writeContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "arm",
+      args: [agent.address, maxPerCall, expiry, configuredAllowance],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: armHash });
+    assert.equal(await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "active" }), true);
+    assert.equal(
+      await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "remainingAllowance" }),
+      configuredAllowance,
+      "owner arm must install the finite Permit2 allowance"
+    );
+
+    let agentRevokeRejected = false;
+    try {
+      const unauthorizedHash = await agentWallet.writeContract({
+        address: mandateAddress,
+        abi: mandate.abi,
+        functionName: "revoke",
+      });
+      await publicClient.waitForTransactionReceipt({ hash: unauthorizedHash });
+    } catch {
+      agentRevokeRejected = true;
+    }
+    assert.equal(agentRevokeRejected, true, "non-owner revoke must be rejected");
+
+    const blockBeforeSigning = await publicClient.getBlock();
+    const amount = 250n;
+    const nonce = 7n;
+    const deadline = blockBeforeSigning.timestamp + 1_800n;
+    const validAfter = blockBeforeSigning.timestamp > 30n ? blockBeforeSigning.timestamp - 30n : 0n;
+    const domain = { name: "Permit2", chainId: CHAIN_ID, verifyingContract: permit2Address };
+    const message = {
+      permitted: { token: tokenAddress, amount },
+      spender: exactProxy,
+      nonce,
+      deadline,
+      witness: { to: payTo, validAfter },
+    };
+    const digest = hashTypedData({ domain, types: permitTypes, primaryType: "PermitWitnessTransferFrom", message });
+    const sessionSignature = await agent.signTypedData({ domain, types: permitTypes, primaryType: "PermitWitnessTransferFrom", message });
+
+    const wrapper = (wrappedAmount, wrappedSpender, signature = sessionSignature) =>
+      encodeAbiParameters(
+        [
+          { type: "address" },
+          { type: "uint256" },
+          { type: "address" },
+          { type: "uint256" },
+          { type: "uint256" },
+          { type: "address" },
+          { type: "uint256" },
+          { type: "bytes" },
+        ],
+        [tokenAddress, wrappedAmount, wrappedSpender, nonce, deadline, payTo, validAfter, signature]
+      );
+
+    const validResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, exactProxy)],
+    });
+    assert.equal(validResult.toLowerCase(), MAGIC_VALUE, "exact Permit2 witness signature must validate");
+
+    const wrongAmountResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount + 1n, exactProxy)],
+    });
+    assert.equal(wrongAmountResult.toLowerCase(), FAILURE_VALUE, "wrong amount must be rejected");
+
+    const wrongPolicyResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, wrongProxy)],
+    });
+    assert.equal(wrongPolicyResult.toLowerCase(), FAILURE_VALUE, "wrong spender policy must be rejected");
+
+    // Exercise the mock's finite transferFrom allowance through the local Permit2 stand-in.
+    const simulatedTransferHash = await ownerWallet.writeContract({
+      address: tokenAddress,
+      abi: token.abi,
+      functionName: "transferFrom",
+      args: [mandateAddress, payTo, 100n],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: simulatedTransferHash });
+    assert.equal(
+      await publicClient.readContract({ address: tokenAddress, abi: token.abi, functionName: "allowance", args: [mandateAddress, permit2Address] }),
+      900n,
+      "mock transferFrom must decrement finite allowance"
+    );
+
+    const revokeHash = await ownerWallet.writeContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "revoke",
+    });
+    await publicClient.waitForTransactionReceipt({ hash: revokeHash });
+    assert.equal(await publicClient.readContract({ address: mandateAddress, abi: mandate.abi, functionName: "active" }), false);
+    assert.equal(
+      await publicClient.readContract({ address: tokenAddress, abi: token.abi, functionName: "allowance", args: [mandateAddress, permit2Address] }),
+      0n,
+      "owner revoke must reset the Permit2 allowance to zero"
+    );
+    const postRevokeResult = await publicClient.readContract({
+      address: mandateAddress,
+      abi: mandate.abi,
+      functionName: "isValidSignature",
+      args: [digest, wrapper(amount, exactProxy)],
+    });
+    assert.equal(postRevokeResult.toLowerCase(), FAILURE_VALUE, "revoked mandate must reject the prior signature");
+
+    console.log("LOCAL SIMULATED EVM TEST PASSED");
+    console.log(`chainId=${CHAIN_ID} rpc=${rpcUrl}`);
+    console.log(`owner=${owner.address} agent=${agent.address}`);
+    console.log(`MockERC20=${tokenAddress} mandate=${mandateAddress}`);
+    console.log("covered: owner arm, exact signature validation, wrong amount/policy rejection, owner-only revoke, finite allowance decrement, allowance reset, post-revoke invalidation");
+    console.log("This is local simulated EVM coverage only; it is not proof of a real facilitator, Permit2 deployment, network, or transaction.");
+  } finally {
+    await stopProcess(ganache);
+    rmSync(compileDir, { recursive: true, force: true });
+  }
+}
+
+main().catch((error) => {
+  console.error(`LOCAL SIMULATED EVM TEST FAILED: ${error.stack ?? error}`);
+  process.exitCode = 1;
+});

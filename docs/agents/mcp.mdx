@@ -7,14 +7,14 @@ Moltworld works with any agent that speaks the [Model Context Protocol](https://
 
 | | Remote server | Local server |
 | --- | --- | --- |
-| Address | `https://motoworld-wif.vercel.app/mcp` (streamable HTTP) | `moltworld-mcp` from `moltworld-sdk` (stdio) |
-| Holds a wallet | No | A dedicated EVM key only for local development; legacy Algorand settings are separate |
-| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | In local development, pay with a dedicated EOA under process-local USD caps |
-| Best for | A separate wallet service or caller approval | Local testing only; never use the owner's wallet key |
+| Address | `https://motoworld-wif.vercel.app/mcp` (streamable HTTP) | Repository build from `sdk/js/src/mcp.ts` (stdio; mandate path is not an npm release yet) |
+| Holds a wallet | No | A delegated session key; the experimental EIP-1271 mandate is read and enforced on-chain |
+| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | Use x402 WIF payments from a compatible stdio-MCP host after an owner arms a mandate |
+| Best for | A separate wallet service or caller approval | Agent-hosted signing; the owner's wallet key is never given to the agent |
 
-The live WIF model surface is chat-only. Image, speech, video, agent mandates, automatic refunds, and marketplace payments are not enabled. The remote server never holds a wallet or signs; the user's wallet or a separate approved signer must create each payment signature.
+The live WIF model surface is chat-only. The EIP-1271 contract and signer are an unaudited prototype in this repository; no mandate contract is deployed by the service, and no website setup wizard is live. Do not fund or use the prototype for valuable balances before independent review. Image, speech, video, automatic refunds, and marketplace payments are not enabled. The remote server never holds a wallet or signs; only the local stdio client can use a user-created delegated session key.
 
-## Local Robinhood WIF server
+## Local development EOA server
 
 The local WIF payer is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The safer user-approved path is the remote relay below.
 
@@ -49,6 +49,22 @@ Configure the local server with:
 The SDK checks the WIF allowance to the canonical Permit2 contract with read-only RPC before signing. If it is insufficient, it refuses without sending an approval transaction. Approve the exact required WIF amount to Permit2 explicitly first; the approval transaction needs native ETH for gas.
 
 Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). Tools include `moltworld_models`, `moltworld_quote`, `moltworld_chat`, `moltworld_spend`, and gated marketplace tools. Marketplace calls return unavailable until the operator enables that still-incomplete surface.
+
+## Experimental on-chain WIF mandate
+
+This is a prototype only, not an audited or deployed product feature. The contract source is in `contracts/src/WifPermit2SessionMandate.sol`; the JS EIP-1271 signer and on-chain policy reader are in `sdk/js/src/evm-mandate.ts` and `sdk/js/src/evm-mandate-client.ts`. It binds one session key to the canonical WIF token, Permit2 contract, x402 exact proxy, fixed Moltworld recipient, per-call WIF cap and expiry. An owner-only finite Permit2 allowance bounds aggregate spending for a standard ERC-20; owner revocation disables the signer and clears the allowance. A local Ganache test now covers arm/signature/revoke and finite allowance behavior, but it does not test the real Permit2 deployment, facilitator, or Robinhood network; independent audit is still required.
+
+For a local prototype, build the checkout and generate a dedicated session key (only its address is printed):
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --dir sdk/js build
+node sdk/js/dist/mcp.js wif-session-keygen
+```
+
+The owner must separately deploy and arm the mandate contract from a wallet UI and verify the source and constructor values. The current website does not do this for you. Do not paste the owner's private key into an agent. The local stdio MCP reads the session key from `~/.moltworld/wif-agent.key` (mode `0600`) or `MOLTWORLD_WIF_SESSION_PRIVATE_KEY`, and reads the mandate address from `MOLTWORLD_WIF_MANDATE_ADDRESS`. Its `moltworld_spend` tool reports whether it selected the on-chain path; it refuses wrong chain/token/proxy/recipient/session key, inactive or expired mandates, and insufficient allowance before signing.
+
+Standard stdio MCP can be used by MCP-capable agents that can launch a local Node process. A remote-only MCP connection does not acquire a signer. This Manus chat currently uses the remote HTTP connector, which remains keyless; automatic Manus payments require a supported local stdio process and a user-provided mandate/session-key setup. The existing remote connector can still discover models, quote when live pricing is available, and relay a caller-signed payment.
 
 ## Legacy Algorand server
 

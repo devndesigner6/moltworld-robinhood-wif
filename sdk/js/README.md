@@ -45,8 +45,12 @@ For tokens without a usable Permit2 allowance, clients must arrange a WIF approv
 
 `paidMicro` in SDK results remains the USD quote value for spend-budget accounting; `receipt.amountAtomic` is the exact ERC-20 amount in base units and must not be converted through JavaScript `Number`.
 
+## Experimental WIF agent mandate
+
+The SDK exports `createWifEvmMandateSigner` and `createWifMandateClientSigner` for the repository's prototype EIP-1271 policy wallet. The session key signs only an exact Permit2 payment whose chain, WIF token, x402 proxy, pay-to, amount and deadline pass local checks; the on-chain contract independently rechecks them. A local Ganache test covers stateful arm/signature/revoke behavior, but it does not test a real Permit2 deployment, facilitator, or Robinhood transaction. This is not a live Moltworld feature: no mandate contract is deployed by the service, no website setup wizard exists, and there is no independent audit. Do not fund it with valuable balances. See [`contracts/README.md`](../../contracts/README.md) and [`docs/agents/mcp.mdx`](../../docs/agents/mcp.mdx) for the current scope.
+
 ## Legacy Algorand signer
 
 Algorand-specific helpers (`mnemonic`, `privateKeyBase64`, AVM signers, and spending mandates) remain for legacy deployments only. The Robinhood WIF gateway disables mandate endpoints and does not accept AVM payment payloads. No Algorand LogicSig or application ID can be reused on Robinhood Chain.
 
-The Python SDK also supports WIF calls using a dedicated local EOA, but that path is local-development-only: its process budgets are not an on-chain mandate. Never give it a user's master wallet key. Python marketplace calls are guarded but the live WIF marketplace remains disabled; WIF mandates and creator payout verification are not implemented.
+The Python SDK also supports WIF calls using a dedicated local EOA, but that path is local-development-only: its process budgets are not an on-chain mandate. Never give it a user's master wallet key. Python marketplace calls are guarded but the live WIF marketplace remains disabled; the EIP-1271 mandate prototype currently applies only to the JavaScript x402 client/MCP path, and creator payout verification is not implemented.

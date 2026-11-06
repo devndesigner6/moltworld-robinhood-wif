@@ -13,6 +13,8 @@ export * from "./receipts.js";
 export * from "./mandates.js";
 export * from "./encoding.js";
 export * from "./counter.js";
+export * from "./evm-mandate.js";
+export * from "./evm-mandate-client.js";
 export { CappedMandateScheme } from "./mandateScheme.js";
 
 const NETWORKS = {

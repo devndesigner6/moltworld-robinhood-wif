@@ -1005,12 +1005,12 @@ await fetch("/v1/quote", {
         ["bolt", "Live paid surface: POST /v1/models/{model}/chat/completions."],
         ["receipt", "Successful responses include Moltworld-Request-Id and a signed Moltworld-Receipt."],
         ["check", "Use /v1/models and /v1/quote for discovery and preflight; neither takes payment."],
-        ["tag", "Do not build against image, voice, video, marketplace, automatic refunds, or agent mandates on this rail."],
+        ["tag", "Image, voice, video, marketplace, automatic refunds, and agent mandates are not live on this rail."],
       ])}
     `, { id: "developer" })}
     ${sec(`
-      ${secHead("Per-call signing <em>is live. Agent mandates are planned.</em>")}
-      <p class="note" data-reveal>The current Robinhood capability does not delegate spending to an agent. Remote MCP can discover and relay a caller-signed chat request, but it never signs or pays. Local budgets are application safeguards, not on-chain mandates. Algorand LogicSig mandates from the legacy deployment do not transfer to Robinhood Chain.</p>
+      ${secHead("Per-call signing <em>is live. Agent mandate code is experimental.</em>")}
+      <p class="note" data-reveal>An EIP-1271 WIF session-mandate prototype is in the public repository, but no contract is deployed by Moltworld, no website setup wizard is live, and there is no independent audit. A local Ganache test covers arm, signature policy, finite allowance, and revoke only; it does not test the real Permit2 deployment, facilitator, or Robinhood network. Do not fund it with valuable balances. The remote MCP stays keyless and only relays caller-signed requests; autonomous payment needs a compatible local stdio-MCP client and a separately armed session wallet. Algorand LogicSig mandates do not transfer to Robinhood Chain.</p>
     `)}
     ${ctaFinal("Review every quote. <em>Authorize only what you intend.</em>", `${btn("/playground", "Try a chat call")}${btn("/llms.txt", "Machine-readable guide", "ghost")}`)}`;
   return renderPage(c, { path: "/quickstart", title: "WIF Quickstart", description: "Use an injected wallet or configured WalletConnect session to authorize chat-only WIF x402 payments, or integrate the exact EVM challenge as a developer.", body });

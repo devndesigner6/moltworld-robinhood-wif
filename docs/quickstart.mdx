@@ -61,9 +61,9 @@ const res = await x402Client.fetch(
 
 The WIF contract and all payment details come from the 402 challenge and [`GET /health`](https://motoworld-wif.vercel.app/health); do not hard-code a recipient or amount. Keep the request body byte-for-byte identical between the unpaid 402 request and the paid retry.
 
-## What is not live on Robinhood
+## Agent mandates: prototype, not live
 
-Agent mandates are planned, not enabled. A remote MCP server can discover and relay a caller-signed chat request, but it never signs or pays. Legacy Algorand LogicSig mandates, marketplace listings and payouts, media endpoints, and automatic WIF refunds belong to separate legacy or migration work and must not be used as Robinhood capabilities.
+The repository now contains an experimental EIP-1271 WIF session-mandate contract and local signer, but no contract is deployed by Moltworld and there is no wallet setup wizard on the website. A local Ganache test covers arm, signature policy, finite allowance, and revoke; it does not validate a real Permit2 deployment, facilitator, or Robinhood transaction, and the prototype has no independent audit. Do not fund it with valuable balances. The remote MCP remains keyless and can relay caller-signed chat but cannot autonomously pay. Automatic payment from an agent requires a compatible local stdio-MCP host, a separate session key, and an owner-armed on-chain mandate. Legacy Algorand LogicSig mandates, marketplace listings and payouts, media endpoints, and automatic WIF refunds are not Robinhood capabilities.
 
 ## Next
 

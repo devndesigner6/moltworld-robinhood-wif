@@ -39,6 +39,28 @@ describe("local EVM EOA auto-payment guard", () => {
     warning.mockRestore();
   });
 
+  it("selects a deployed WIF mandate signer without enabling unrestricted EOA autopay", () => {
+    vi.stubEnv("MOLTWORLD_WIF_MANDATE_ADDRESS", "0x4444444444444444444444444444444444444444");
+    vi.stubEnv("MOLTWORLD_WIF_SESSION_PRIVATE_KEY", TEST_KEY);
+    vi.stubEnv("MOLTWORLD_EVM_PRIVATE_KEY", "");
+    vi.stubEnv("MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY", "");
+
+    const result = clientFromEnv();
+
+    expect(result.robinhood).toBe(true);
+    expect(result.mandateBacked).toBe(true);
+    expect(result.mandateAddress).toBe("0x4444444444444444444444444444444444444444");
+    expect(result.client.address).toBe(result.mandateAddress);
+  });
+
+  it("refuses to use a session key as an unrestricted EOA when no mandate is configured", () => {
+    vi.stubEnv("MOLTWORLD_WIF_SESSION_PRIVATE_KEY", TEST_KEY);
+    vi.stubEnv("MOLTWORLD_WIF_MANDATE_ADDRESS", "");
+    vi.stubEnv("MOLTWORLD_EVM_PRIVATE_KEY", "");
+
+    expect(() => clientFromEnv()).toThrow(/requires MOLTWORLD_WIF_MANDATE_ADDRESS/);
+  });
+
   it("refuses in production even when explicitly acknowledged", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("MOLTWORLD_EVM_PRIVATE_KEY", TEST_KEY);
