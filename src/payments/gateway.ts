@@ -213,6 +213,13 @@ function abortWith(state: PaymentState, reason: string, message: string) {
   return { abort: true as const, reason, message };
 }
 
+function safeFailureText(value: unknown, fallback: string, maxLength: number): string {
+  const text = typeof value === "string"
+    ? value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()
+    : "";
+  return text ? text.slice(0, maxLength) : fallback;
+}
+
 export function registerPaymentHooks(server: x402ResourceServer): void {
   server.onBeforeVerify(async (ctx) => {
     const state = stateFromTransport(ctx.transportContext);
@@ -288,7 +295,14 @@ export function registerPaymentHooks(server: x402ResourceServer): void {
   // Authorization flow: the facilitator verified the payment; record it before the work runs.
   server.onAfterVerify(async (ctx) => {
     const state = stateFromTransport(ctx.transportContext);
-    if (!state || !state.paymentHash) return;
+    if (!state) return;
+    if (!ctx.result.isValid) {
+      const reason = safeFailureText(ctx.result.invalidReason, "payment_rejected", 80);
+      const message = safeFailureText(ctx.result.invalidMessage, reason, 240);
+      state.rejection = { reason, message };
+      return;
+    }
+    if (!state.paymentHash) return;
     state.payer = (ctx.result as any).payer ?? state.payer!;
     if (!(await recordRequest(state, ctx.requirements))) return abortWith(state, "payment_already_used", "This payment was already used.");
   });

@@ -90,6 +90,7 @@ function merchantFixture() {
 
 export async function startHarness() {
   const chain: Chain = { balances: new Map(), round: 1_000_000, settled: [], failNextSettle: false };
+  let nextVerifyFailure: { reason: string; message: string } | null = null;
 
   const algod = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") {
@@ -217,6 +218,11 @@ export async function startHarness() {
       if (req.method === "GET" && url.pathname.startsWith("/data/merchants/")) return send(res, 200, merchantFixture());
       const body = await readJson(req);
       if (req.method === "POST" && url.pathname === "/verify") {
+        if (nextVerifyFailure) {
+          const failure = nextVerifyFailure;
+          nextVerifyFailure = null;
+          return send(res, 200, { isValid: false, invalidReason: failure.reason, invalidMessage: failure.message });
+        }
         return send(res, 200, await facilitator.verify(body.paymentPayload, body.paymentRequirements));
       }
       if (req.method === "POST" && url.pathname === "/settle") {
@@ -234,6 +240,12 @@ export async function startHarness() {
     algodUrl,
     facilitatorUrl,
     feePayerAddress,
+    rejectNextVerify(reason: string, message: string) {
+      nextVerifyFailure = { reason, message };
+    },
+    clearVerifyFailure() {
+      nextVerifyFailure = null;
+    },
     async close() {
       await new Promise((r) => algod.close(r));
       await new Promise((r) => facilitatorServer.close(r));

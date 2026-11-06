@@ -55,6 +55,7 @@ afterAll(async () => {
 beforeEach(() => {
   mock.mockControls.reset();
   harness.chain.failNextSettle = false;
+  harness.clearVerifyFailure();
 });
 
 const chatBody = (content = "What is x402?", max_tokens = 200) => ({ messages: [{ role: "user", content }], max_tokens });
@@ -167,6 +168,26 @@ describe("chat (authorization flow)", () => {
     // Mock usage is far below the max_tokens budget, so most of it is rebated.
     expect(record!.rebate_micro).toBeGreaterThan(0);
     expect(await ledger.unpaidBalance(payer.address, "rebate")).toBe(record!.rebate_micro);
+  });
+
+  it("does not record or settle a facilitator-rejected authorization and returns its safe reason", async () => {
+    const payer = createPayer(harness, appFetch);
+    const settledBefore = harness.chain.settled.length;
+    harness.rejectNextVerify("invalid_payment", "Permit2 verification rejected: invalid test signature");
+
+    const res = await payer.fetch("http://localhost/v1/models/gpt/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chatBody("rejected payment")),
+    });
+
+    expect(res.status).toBe(402);
+    expect((await res.json()).error).toEqual({ code: "invalid_payment", message: "Permit2 verification rejected: invalid test signature" });
+    expect(harness.chain.settled).toHaveLength(settledBefore);
+    expect(mock.mockControls.calls).toBe(0);
+    const requestId = res.headers.get("moltworld-request-id");
+    expect(requestId).toBeTruthy();
+    expect(await ledger.getRequest(requestId!)).toBeUndefined();
   });
 
   it("replays the original response for a retried Payment-Signature without charging again", async () => {
