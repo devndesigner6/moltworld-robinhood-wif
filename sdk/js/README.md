@@ -1,10 +1,10 @@
 # moltworld-sdk
 
-x402 client for Moltworld's pay-per-request AI gateway. The migration adds Robinhood Chain WIF payments through an EVM signer while preserving the old AVM signer path for legacy Algorand deployments. The Robinhood deployment currently accepts chat calls only.
+x402 client for Moltworld's pay-per-request AI gateway. WIF payments use an EVM signer; the legacy AVM signer path remains for Algorand deployments. The live WIF model surface currently accepts chat calls only.
 
-## Robinhood Chain / MetaMask
+## WIF with an EVM wallet
 
-Use a wallet client backed by an EIP-1193 provider, such as MetaMask or Robinhood Wallet. The caller should configure the wallet on Robinhood Chain mainnet (chain ID `4663`) and use the gateway's public WIF contract and receiving address from `/health`.
+Use a wallet client backed by an injected EIP-1193 provider or a WalletConnect session. Mobile WalletConnect requires the public Reown project ID to be configured on the deployment. Configure the wallet on Robinhood Chain mainnet (chain ID `4663`) and read the WIF contract and receiving address from `/health`.
 
 ```ts
 import { createPublicClient, createWalletClient, custom, http } from "viem";
@@ -27,7 +27,7 @@ const evmSigner = toClientEvmSigner({
 }, publicClient);
 
 const client = new MoltworldClient({
-  baseUrl: "https://motoworld-wif.onrender.com",
+  baseUrl: "https://motoworld-wif.vercel.app",
   evmSigner,
   maxPerRequestUsd: 0.25,
   budgetUsd: 5,
@@ -49,4 +49,4 @@ For tokens without a usable Permit2 allowance, clients must arrange a WIF approv
 
 Algorand-specific helpers (`mnemonic`, `privateKeyBase64`, AVM signers, and spending mandates) remain for legacy deployments only. The Robinhood WIF gateway disables mandate endpoints and does not accept AVM payment payloads. No Algorand LogicSig or application ID can be reused on Robinhood Chain.
 
-The Python client has not yet been ported to EVM; do not advertise it as a Robinhood WIF payer until that work is complete.
+The Python SDK also supports WIF calls using a dedicated local EOA, but that path is local-development-only: its process budgets are not an on-chain mandate. Never give it a user's master wallet key. Python marketplace calls are guarded but the live WIF marketplace remains disabled; WIF mandates and creator payout verification are not implemented.

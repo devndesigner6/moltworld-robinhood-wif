@@ -1,67 +1,50 @@
 ---
 title: "Python"
-description: "The moltworld package for Python 3.9 and later."
+description: "The Python client and the current Robinhood WIF boundary."
 ---
+
+The Python package retains the legacy Algorand client. Its EVM private-key payer is **local-development-only**: the spend limits are process-local, not a user-authorized on-chain mandate. Never give an agent the owner's/master wallet key. For per-call user approval, use a connected wallet or caller-signed remote MCP flow instead.
+
+## Robinhood WIF chat
 
 ```bash
 pip install ./sdk/python   # from the Moltworld repository
 ```
 
-It depends on `py-algorand-sdk` and `pynacl`. Keys stay in your process.
-
-## Create a client
-
 ```python
 import os
 from moltworld import MoltworldClient
 
+# Local development only: use a disposable, separately funded EOA.
+os.environ["MOLTWORLD_ENV"] = "local"
+os.environ["MOLTWORLD_EVM_KEY_ROLE"] = "dedicated"
+os.environ["MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY"] = "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE"
+
 client = MoltworldClient(
-    mnemonic=os.environ["WALLET_MNEMONIC"],  # or private_key=
+    evm_private_key=os.environ["MOLTWORLD_EVM_PRIVATE_KEY"],
+    base_url="https://motoworld-wif.vercel.app",
     max_per_request_usd=0.25,
     budget_usd=5,
 )
+
+result = client.chat("gpt-4o", [{"role": "user", "content": "Hi"}], max_tokens=200)
+print(result.data["choices"][0]["message"]["content"])
+print(result.paid_atomic, result.receipt["amountAtomic"])
 ```
 
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `mnemonic` / `private_key` | | Wallet. One is required |
-| `max_per_request_usd` | `1.0` | Refuse any single payment above this |
-| `budget_usd` | `None` | Refuse payments that would take this client's total above this |
-| `expected_pay_to` | from `/health` | Refuse to pay any other address |
-| `base_url` | `https://moltworld.xyz` | Gateway address |
-| `algod_url` | public node | Algod used to build transactions |
-| `timeout` | `120` | Seconds per HTTP request |
-
-## Calls
-
-```python
-client.chat("gpt-4o", [{"role": "user", "content": "Hi"}], max_tokens=200)
-client.image("gpt-image-1.5", "a lighthouse at dusk", size="1024x1024")
-client.speech("tts-1", "Hello there", voice="alloy")
-client.market("weather-now", {"lat": 52.37, "lon": 4.9})
-client.call("/v1/models/gpt-4o/chat/completions", body)
-```
-
-Each returns a `PaidResult` with `data`, `request_id`, `receipt`, `verified`, `paid_micro` and `replayed`.
+The currently live model surface is chat-only on Robinhood Chain (`eip155:4663`). Before signing, the client checks the advertised WIF asset, recipient, 18 decimals, and Permit2 payment method. A first payment may require a separate exact WIF allowance approval to Permit2 and native ETH for gas. The client does not create an agent mandate or an automatic refund.
 
 ## Free calls
 
 ```python
 client.quote("gpt-4o", body)
 client.health()
-client.job(job_id)
-client.wait_for_job(job_id)
+client.receipt(request_id)
 client.spent_usd
 ```
 
-## Receipts
+## Unsupported on the Robinhood rail
 
-```python
-from moltworld import check_receipt
+Do not use `image`, `speech`, `video`, or Algorand mandate settings against the current WIF deployment. The Python SDK has a guarded `market()` call path, but the live WIF marketplace is disabled and returns unavailable before payment.
 
-check_receipt(receipt, public_key_b64, request=request_bytes, response=response_bytes)
-```
-
-## Errors
-
-Failed calls raise `MoltworldError` with `status`, `code` and `body`.
+> **Legacy Algorand client:** `mnemonic`, Algorand `private_key`, USDC amounts, media methods, and LogicSig mandates remain documented for isolated legacy deployments only.

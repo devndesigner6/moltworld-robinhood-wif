@@ -1,12 +1,64 @@
-import { Context } from "hono";
+import type { Context } from "hono";
+import type { GatewayConfig } from "../config.js";
 import { config } from "../config.js";
 import { defaultModelRegistry, getModelEndpoint, getModelDiscoveryDescription } from "../models/registry.js";
 import { quoteRequest, referenceRequest } from "../pricing/index.js";
 
-const SITE_TITLE = "Moltworld | Multimodal AI Gateway with x402 on Algorand";
-const SITE_DESCRIPTION =
-  "One API for AI models and autonomous agents. Chat, image and voice requests are paid per call in USDC on Algorand.";
-const SERVICE_TAGS = ["moltworld", "ai-inference", "algorand", "x402", "x402-global-challenge"];
+export interface DiscoveryProfile {
+  title: string;
+  description: string;
+  tags: string[];
+  payment: {
+    scheme: "exact";
+    network: string;
+    asset: string;
+    assetSymbol: string;
+    assetDecimals: number;
+    tokenStandard: "ERC-20" | "Algorand ASA";
+    permit2: boolean;
+    supportedModalities: string[];
+    unsupportedFeatures: string[];
+  };
+}
+
+/** Machine-readable service facts must follow the selected payment rail. */
+export function discoveryProfile(cfg: Pick<GatewayConfig, "paymentChain" | "networkCaip2" | "paymentAssetAddress" | "paymentAssetSymbol" | "paymentAssetDecimals">): DiscoveryProfile {
+  if (cfg.paymentChain === "robinhood") {
+    return {
+      title: "Moltworld x402 Gateway | WIF Chat",
+      description: "Moltworld supports chat-only requests paid per call in WIF through x402 on Robinhood Chain. Each call is authorized by the user's EIP-1193 wallet; agent mandates and marketplace payments are not enabled.",
+      tags: ["moltworld", "ai-inference", "chat", "wif", "robinhood-chain", "x402", "exact-evm", "permit2"],
+      payment: {
+        scheme: "exact",
+        network: String(cfg.networkCaip2),
+        asset: cfg.paymentAssetAddress,
+        assetSymbol: cfg.paymentAssetSymbol,
+        assetDecimals: cfg.paymentAssetDecimals,
+        tokenStandard: "ERC-20",
+        permit2: true,
+        supportedModalities: ["chat"],
+        unsupportedFeatures: ["image", "voice", "video", "agent mandates", "marketplace", "automatic refunds"],
+      },
+    };
+  }
+
+  return {
+    title: "Moltworld | Legacy Algorand x402 Gateway",
+    description: "Legacy Algorand deployments pay supported model requests per call in USDC through x402.",
+    tags: ["moltworld", "ai-inference", "algorand", "usdc", "x402", "legacy"],
+    payment: {
+      scheme: "exact",
+      network: String(cfg.networkCaip2),
+      asset: cfg.paymentAssetAddress,
+      assetSymbol: cfg.paymentAssetSymbol,
+      assetDecimals: cfg.paymentAssetDecimals,
+      tokenStandard: "Algorand ASA",
+      permit2: false,
+      supportedModalities: ["chat", "image", "voice", "video"],
+      unsupportedFeatures: [],
+    },
+  };
+}
 
 function siteUrl(): string {
   return config.publicDomain.replace(/\/+$/, "");
@@ -18,26 +70,38 @@ function fromQuote(model: Parameters<typeof referenceRequest>[0]) {
 
 export function handleX402Discovery(c: Context): Response {
   const origin = siteUrl();
+  const profile = discoveryProfile(config);
+  const models = defaultModelRegistry
+    .getEnabledModels()
+    .filter((model) => config.paymentChain !== "robinhood" || model.modality === "chat");
   return c.json(
     {
       x402Version: 2,
-      name: SITE_TITLE,
-      description: SITE_DESCRIPTION,
+      name: profile.title,
+      description: profile.description,
       website: origin,
       logo: `${origin}/logo.png`,
       image: `${origin}/logo.png`,
-      tags: SERVICE_TAGS,
-      resources: defaultModelRegistry.getEnabledModels().map((model) => ({
-        url: `${origin}${getModelEndpoint(model)}`,
-        method: "POST",
-        description: getModelDiscoveryDescription(model),
-        network: config.networkCaip2,
-        asset: config.usdcAsaId,
-        amount: String(fromQuote(model).microUsdc),
-        pricing: "dynamic: amount shown is for a reference request; POST /v1/quote prices an exact body",
-        payTo: config.payToAddress,
-        tags: [...SERVICE_TAGS, model.modality],
-      })),
+      tags: profile.tags,
+      payment: profile.payment,
+      resources: models.map((model) => {
+        const quote = fromQuote(model);
+        return {
+          url: `${origin}${getModelEndpoint(model)}`,
+          method: "POST",
+          description: getModelDiscoveryDescription(model),
+          network: profile.payment.network,
+          asset: profile.payment.asset,
+          assetSymbol: profile.payment.assetSymbol,
+          assetDecimals: profile.payment.assetDecimals,
+          ...(config.paymentChain === "robinhood" ? {} : { amount: String(quote.microUsdc) }),
+          pricing: config.paymentChain === "robinhood"
+            ? "dynamic: WIF amount is quote-bound in the HTTP 402 challenge for the exact chat body"
+            : "dynamic: amount shown is for a reference request; POST /v1/quote prices an exact body",
+          payTo: config.payToAddress,
+          tags: [...profile.tags, model.modality],
+        };
+      }),
     },
     200,
     { "Cache-Control": "public, max-age=300" }
@@ -46,59 +110,84 @@ export function handleX402Discovery(c: Context): Response {
 
 export function handleLlmsTxt(c: Context): Response {
   const origin = siteUrl();
-  const network = config.isMainnet ? "Algorand Mainnet" : "Algorand Testnet";
+  const profile = discoveryProfile(config);
+  const robinhood = config.paymentChain === "robinhood";
+  const network = robinhood
+    ? `${config.isMainnet ? "Robinhood Chain Mainnet" : "Robinhood Chain Testnet"} (${config.networkCaip2})`
+    : `${config.isMainnet ? "Algorand Mainnet" : "Algorand Testnet"} (${config.networkCaip2})`;
   const lines = [
-    `# ${SITE_TITLE}`,
+    `# ${profile.title}`,
     "",
-    `> ${SITE_DESCRIPTION}`,
+    `> ${profile.description}`,
     "",
     `Site: ${origin}/`,
     `Docs: ${config.docsUrl}`,
+    `Quickstart: ${origin}/quickstart`,
     `Logo: ${origin}/logo.png`,
     `Merchant payTo address: ${config.payToAddress}`,
-    `Payment: x402 exact scheme; USDC on ${network} (ASA ${config.usdcAsaId}; network ${config.networkCaip2}).`,
-    `Facilitator: ${config.facilitatorUrl} (GoPlausible).`,
-    "Discovery: GoPlausible Bazaar; challenge tag: x402-global-challenge.",
+    `Payment: x402 exact scheme; ${profile.payment.assetSymbol} on ${network} (asset ${profile.payment.asset}; ${profile.payment.assetDecimals} decimals).`,
+    ...(robinhood
+      ? [
+          "Token standard: WIF ERC-20.",
+          "Permit2: the exact 402 challenge may require a first-use WIF approval to Permit2; that approval is a separate wallet transaction and needs native ETH for gas.",
+          "Wallets: browser checkout supports an injected EIP-1193 wallet; WalletConnect is available when the deployment configures a Reown project ID. Each chat call requires the user wallet to authorize the exact quote-bound payment.",
+          "Supported now: chat model requests only.",
+          "Not enabled now: image, voice, video, agent mandates, marketplace listings/payouts, and automatic WIF refunds.",
+          "Planned, not live: agent mandate/delegated spending. Do not treat local budgets or remote MCP discovery as an on-chain mandate.",
+        ]
+      : [
+          `Facilitator: ${config.facilitatorUrl} (legacy Algorand deployment).`,
+          "Legacy rail: Algorand USDC x402 support; see the legacy product and mandate documentation.",
+        ]),
+    ...(robinhood ? [] : ["Discovery: GoPlausible Bazaar; challenge tag: x402-global-challenge."]),
     "",
-    "## Agent guidance",
+    "## Agent and developer guidance",
     "",
     "- Read the live model catalog for current availability, prices, descriptions, and endpoint paths.",
-    "- Prices are per request and depend on the body (input size and max_tokens for chat, images, characters, seconds). POST /v1/quote returns the exact amount for a body without paying.",
-    "- Send JSON to a model's POST endpoint. Invalid bodies get HTTP 400 before any payment. A valid unpaid request returns HTTP 402 with a Payment-Required header for that exact body.",
-    "- Pay with an x402 client that supports Algorand USDC and retry with Payment-Signature. Each paid response carries a Moltworld-Receipt header: an Ed25519-signed receipt binding the txid to sha256 of your request and of the response body.",
-    "- Chat settles after the answer is produced; unused max_tokens budget is rebated in USDC. Image and voice settle first and are refunded on-chain if the upstream fails. Historical video job records remain available at /v1/jobs/{id}.",
+    "- Prices are per request and depend on the body. POST /v1/quote returns the exact USD quote and, on Robinhood, the quote-time WIF amount without paying.",
+    "- Send the exact same JSON body to a chat POST endpoint. A valid unpaid request returns HTTP 402 with a Payment-Required header for that body.",
+    ...(robinhood
+      ? [
+          "- Use an x402 EVM client implementing ExactEvmScheme and Permit2, or the browser's injected EIP-1193 wallet flow, to authorize the challenge and retry with Payment-Signature.",
+          "- The user wallet signs each call. No live agent mandate allows unattended spending on Robinhood Chain.",
+          "- A successful chat response carries a Moltworld-Receipt header binding the request and response hashes to the settled WIF amount and Robinhood transaction.",
+          "- Chat is configured to settle after the answer; unused max_tokens are not an automatic WIF rebate.",
+        ]
+      : [
+          "- Pay with an x402 client that supports Algorand USDC and retry with Payment-Signature. Each paid response carries a Moltworld-Receipt header.",
+          "- Legacy Algorand chat rebates, media refunds, mandates, and marketplace behavior are documented separately and do not describe the Robinhood rail.",
+        ]),
     "- Retrying with the same Payment-Signature after a dropped connection returns the original response; it is never charged twice.",
-    "- Agents can pay through an on-chain spending mandate (delegated LogicSig) with per-call, daily and model limits: see /v1/mandates/draft. Every mandate is bound to the agent's own key (`moltworld-mcp keygen`): each payment carries the agent's ed25519 signature over its txid as LogicSig arg 0, so the credential alone cannot pay.",
-    ...(config.mandateCounterAppId
-      ? [`- Mandates here are capped on-chain: each payment is grouped with a call to the immutable spend counter app ${config.mandateCounterAppId} (args: "spend", salt, cap, window), which rejects spend over the cap per window.`]
-      : []),
     "- Choose a model that matches the requested modality and respect the input limits in the catalog and payment response.",
     "",
     "## Discovery and service links",
     "",
     `- [Moltworld home](${origin}/): Service overview and logo.`,
+    `- [Quickstart](${origin}/quickstart): User-wallet and developer setup for the live rail.`,
     `- [x402 service descriptor](${origin}/.well-known/x402): Machine-readable paid route and payment catalog.`,
     `- [A2A agent card](${origin}/.well-known/agent-card.json): Working JSON-RPC model discovery agent at ${origin}/a2a.`,
     `- [MCP server](${origin}/mcp): Model catalog, live payment requirements, and caller-signed paid requests.`,
-    `- [Live model catalog](${origin}/v1/models): Enabled models, prices, descriptions, and endpoint paths in JSON.`,
+    `- [Live model catalog](${origin}/v1/models): Enabled models, prices, descriptions, and endpoint paths.`,
     `- [Service health](${origin}/health): Network, asset, payTo address, and facilitator context.`,
-    `- [Quote](${origin}/v1/quote): POST { model, ...body } for the exact price of a request.`,
+    `- [Quote](${origin}/v1/quote): POST { model, ...body } for the exact price.`,
     `- [Receipt keys](${origin}/.well-known/moltworld-receipts.json): Ed25519 keys that sign Moltworld receipts.`,
-    `- [Public stats](${origin}/v1/stats): Ledger metrics with on-chain txids.`,
-    `- [Marketplace](${origin}/v1/market): Creator APIs sold through Moltworld's x402 checkout.`,
-    `- [GoPlausible Bazaar resources](${config.facilitatorUrl}/discovery/resources): Facilitator catalog of settled x402 resources.`,
-    `- [GoPlausible Bazaar merchants](${config.facilitatorUrl}/discovery/merchants): Facilitator merchant catalog; find the payTo address above.`,
+    `- [Public stats](${origin}/v1/stats): Ledger metrics with on-chain transaction ids.`,
+    ...(robinhood ? [] : [`- [Legacy marketplace](${origin}/v1/market): Creator APIs on the legacy Algorand rail.`]),
     "",
     "## Paid model endpoints",
     "",
   ];
 
-  for (const modality of ["chat", "image", "voice", "video"] as const) {
+  const modalities: Array<"chat" | "image" | "voice" | "video"> = robinhood ? ["chat"] : ["chat", "image", "voice", "video"];
+  for (const modality of modalities) {
     const models = defaultModelRegistry.getEnabledModels().filter((model) => model.modality === modality);
     lines.push(`### ${modality[0].toUpperCase()}${modality.slice(1)}`, "");
     for (const model of models) {
+      const quote = fromQuote(model);
       lines.push(
-        `- [${model.displayName}](${origin}${getModelEndpoint(model)}): POST; from ${fromQuote(model).formattedPrice} USDC. ${getModelDiscoveryDescription(model)}`
+        robinhood
+          ? `- [${model.displayName}](${origin}${getModelEndpoint(model)}): POST chat; USD quote converted to an exact WIF amount in the 402 challenge. ${getModelDiscoveryDescription(model)}`
+          : `- [${model.displayName}](${origin}${getModelEndpoint(model)}): POST; from ${quote.formattedPrice} USDC. ${getModelDiscoveryDescription(model)}`
       );
     }
     lines.push("");

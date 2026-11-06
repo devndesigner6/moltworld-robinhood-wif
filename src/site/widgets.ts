@@ -182,7 +182,7 @@ export function payerWidget(): string {
           <button class="tab" type="button" disabled aria-disabled="true" title="Mandates are not available on Robinhood Chain">${icon("mandate", 16)}Mandate</button>
         </div>
         <div class="payer-pane" data-pane="wallet">
-          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small" type="button" id="walletLoad" aria-label="Connect MetaMask or Robinhood Wallet" title="Connect MetaMask or Robinhood Wallet">Connect wallet</button></div>
+          <div class="wallet-list" id="walletList"><button class="btn btn-ghost btn-small" type="button" id="walletLoad" aria-label="Connect an EVM wallet" title="Connect an EVM wallet">Connect wallet</button></div>
           <div class="payer-active hidden" id="walletActive"><span class="pulse" aria-hidden="true"></span><span class="mono" id="walletAddr"></span><span class="mono" id="walletBal"></span><button class="btn btn-ghost btn-small" type="button" id="walletOff">Disconnect</button></div>
         </div>
         <div class="payer-cap"><label for="capInput">Max per request (USD)</label><input id="capInput" type="number" min="0.001" step="0.01" value="1" inputmode="decimal"></div>
@@ -225,6 +225,7 @@ export function payConfigScript(): string {
     paymentAssetAddress: config.paymentAssetAddress,
     paymentAssetSymbol: config.paymentAssetSymbol,
     paymentAssetDecimals: config.paymentAssetDecimals,
+    reownProjectId: config.paymentChain === "robinhood" ? config.reownProjectId : undefined,
     robinhoodRpcUrl: config.paymentChain === "robinhood" ? config.robinhoodRpcUrl : undefined,
     usdcAssetId: Number(config.usdcAsaId),
     algodUrl: config.publicAlgodUrl || undefined,

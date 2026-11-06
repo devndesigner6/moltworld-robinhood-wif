@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import { discoveryProfile } from "../src/routes/metadata.js";
+import { SITE_PATHS } from "../src/site/paths.js";
+
+describe("Robinhood machine-readable discovery", () => {
+  it("describes the live WIF chat-only EVM rail without a fake fixed amount", () => {
+    const profile = discoveryProfile({
+      paymentChain: "robinhood",
+      networkCaip2: "eip155:4663",
+      paymentAssetAddress: "0x5173b8eA6923c2d40267890D45C46a3480954773",
+      paymentAssetSymbol: "WIF",
+      paymentAssetDecimals: 18,
+    });
+
+    expect(profile.title).toContain("WIF");
+    expect(profile.description).toContain("Robinhood Chain");
+    expect(profile.description).toContain("EIP-1193");
+    expect(profile.description).toContain("chat-only");
+    expect(profile.payment).toMatchObject({
+      scheme: "exact",
+      network: "eip155:4663",
+      asset: "0x5173b8eA6923c2d40267890D45C46a3480954773",
+      assetSymbol: "WIF",
+      assetDecimals: 18,
+      tokenStandard: "ERC-20",
+      permit2: true,
+      supportedModalities: ["chat"],
+    });
+    expect(profile.payment.unsupportedFeatures).toEqual(expect.arrayContaining(["agent mandates", "marketplace", "automatic refunds"]));
+  });
+
+  it("keeps the legacy Algorand profile distinguishable", () => {
+    const profile = discoveryProfile({
+      paymentChain: "algorand",
+      networkCaip2: "algorand:legacy",
+      paymentAssetAddress: "10458941",
+      paymentAssetSymbol: "USDC",
+      paymentAssetDecimals: 6,
+    });
+
+    expect(profile.title).toContain("Legacy Algorand");
+    expect(profile.payment.tokenStandard).toBe("Algorand ASA");
+    expect(profile.payment.permit2).toBe(false);
+  });
+
+  it("declares the real HTML quickstart route", () => {
+    expect(SITE_PATHS).toContain("/quickstart");
+  });
+});

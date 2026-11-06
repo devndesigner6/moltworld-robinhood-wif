@@ -618,6 +618,43 @@ describe("creator marketplace", () => {
     const res = await appFetch(post("/v1/market/listings", { listing, creator_sig: mandates.signOwnerMessage(listing, creator.sk) }));
     expect(res.status).toBe(400);
   });
+
+  it("does not settle or credit a creator when the upstream returns non-2xx", async () => {
+    const creator = algosdk.generateAccount();
+    const slug = `failure-${crypto.randomBytes(4).toString("hex")}`;
+    const listing = {
+      action: "list",
+      creator: creator.addr.toString(),
+      slug,
+      name: "Failure API",
+      description: "An endpoint used to verify success-only settlement.",
+      upstream_url: "https://creator.example/failure",
+      price_usd: 0.02,
+      issued_at: Math.floor(Date.now() / 1000),
+    };
+    const created = await appFetch(post("/v1/market/listings", { listing, creator_sig: mandates.signOwnerMessage(listing, creator.sk) }));
+    expect(created.status).toBe(201);
+    const { listing: view } = await created.json();
+    const pending = await (await appFetch(new Request("http://localhost/v1/ops/listings?status=pending", { headers: { Authorization: "Bearer test-admin-token" } }))).json();
+    const id = pending.data.find((l: any) => l.slug === slug).id;
+    expect((await appFetch(post(`/v1/ops/listings/${id}/review`, { status: "approved" }, { Authorization: "Bearer test-admin-token" }))).status).toBe(200);
+
+    market.setCreatorFetcherForTests(async () => ({ status: 503, contentType: "application/json", body: new TextEncoder().encode('{"error":"offline"}') }));
+    const payer = createPayer(harness, appFetch);
+    const settledBefore = harness.chain.settled.length;
+    const res = await payer.fetch(`http://localhost/v1/market/${slug}/call`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ city: "Lagos" }),
+    });
+    expect(res.status).toBe(502);
+    expect(harness.chain.settled.length).toBe(settledBefore);
+    expect((await ledger.getRequest(res.headers.get("moltworld-request-id")!))?.status).toBe("failed");
+    const earnings = await (await appFetch(new Request(`http://localhost/v1/market/creators/${creator.addr}/earnings`))).json();
+    expect(earnings.unpaid).toBe("$0");
+    expect(view.status).toBe("pending");
+    market.setCreatorFetcherForTests(null);
+  });
 });
 
 describe("payouts and stats", () => {

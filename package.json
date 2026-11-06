@@ -1,10 +1,10 @@
 {
-  "name": "moltworld-robinhood-wif",
+  "name": "moltworld-x402-gateway",
   "version": "1.0.0",
-  "description": "Moltworld: pay-per-request AI gateway with x402 WIF settlement on Robinhood Chain",
+  "description": "Moltworld x402 Gateway: pay-per-request AI services with WIF settlement",
   "repository": {
     "type": "git",
-    "url": "https://github.com/devndesigner6/moltworld-robinhood-wif.git"
+    "url": "https://github.com/devndesigner6/moltworld-x402-gateway.git"
   },
   "type": "module",
   "main": "src/server.ts",
@@ -54,6 +54,7 @@
     "@electric-sql/pglite": "^0.5.11",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/server": "^2.2.0",
+    "@walletconnect/ethereum-provider": "2.26.0",
     "@x402-avm/extensions": "^2.6.1",
     "@x402/avm": "^2.27.0",
     "@x402/core": "^2.27.0",

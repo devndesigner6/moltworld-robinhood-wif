@@ -132,8 +132,9 @@ function snippets(model = "gpt-4o") {
       "args": [],
       "env": {
         "MOLTWORLD_URL": "${origin}",
-        "MOLTWORLD_AGENT_KEY_FILE": "~/.moltworld/robinhood-agent.key",
-        "MOLTWORLD_EVM_PRIVATE_KEY": "<set in your local environment>",
+        "MOLTWORLD_ENV": "local",
+        "MOLTWORLD_EVM_KEY_ROLE": "dedicated",
+        "MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY": "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE",
         "MOLTWORLD_MAX_PER_REQUEST_USD": "0.25",
         "MOLTWORLD_BUDGET_USD": "5"
       }
@@ -141,8 +142,11 @@ function snippets(model = "gpt-4o") {
   }
 }
 
-// Local setup: moltworld-mcp evm-keygen
-// The local server exposes moltworld_models, moltworld_quote, and moltworld_chat.
+// LOCAL DEVELOPMENT ONLY: generate a disposable key with moltworld-mcp evm-keygen.
+// Its private key is kept in ~/.moltworld/wif-agent.key, never the owner's wallet.
+// Process budgets are not on-chain mandates; for production use caller-approved signing.
+// Tools: moltworld_models, moltworld_quote, moltworld_chat, moltworld_marketplace, moltworld_market.
+// Marketplace tools return unavailable until the operator enables the WIF marketplace.
 // This is configuration example text; it does not claim a completed call.
 ` : `{
   "mcpServers": {
@@ -192,6 +196,10 @@ console.log(res.receipt?.txid, res.verification?.ok);`,
     py: config.paymentChain === "robinhood" ? `import os
 from moltworld import MoltworldClient
 
+# Local development only: a dedicated disposable EOA, not an on-chain mandate.
+os.environ["MOLTWORLD_ENV"] = "local"
+os.environ["MOLTWORLD_EVM_KEY_ROLE"] = "dedicated"
+os.environ["MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY"] = "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE"
 client = MoltworldClient(
     evm_private_key=os.environ["MOLTWORLD_EVM_PRIVATE_KEY"],
     base_url="${origin}",
@@ -740,7 +748,7 @@ await revokeMandate("${origin}", owner, mandateId);`, "ts"],
 
 function marketplace(c: Context) {
   if (config.paymentChain === "robinhood") {
-    const body = `${pageHero({ crumbs: [["Product", "/products"]], title: "Creator payouts are <em>not enabled here.</em>" })}${sec(`<p class="note">The legacy marketplace uses Algorand creator signatures and USDC payout workers. It is disabled on Robinhood Chain until listing authorization, WIF accounting, and creator payouts are migrated and tested.</p>`)}`;
+    const body = `${pageHero({ crumbs: [["Product", "/products"]], title: "Creator payouts are <em>not enabled here.</em>" })}${sec(`<p class="note">The WIF marketplace implementation is staged but disabled by default. Signed listings, quote-bound WIF pricing, and exact creator credits are present; payout verification, reconciliation, and operating terms are not complete. Do not submit listings or assume a creator payout will occur.</p>`)}`;
     return renderPage(c, { path: "/products/marketplace", title: "Marketplace unavailable", description: "The Algorand marketplace is disabled on the Robinhood Chain deployment.", body });
   }
   const origin = config.publicDomain;
@@ -895,7 +903,7 @@ function developers(c: Context) {
     const quickstart = codeBlock("# 1. Connect MetaMask or Robinhood Wallet to Robinhood Chain (chain ID 4663)\n# 2. Hold WIF and a small amount of ETH for a first-use Permit2 approval\n# 3. Request a free quote, then use an x402 EVM client for the chat endpoint\nPOST /v1/quote\nPOST /v1/models/{model}/chat/completions");
     const body = pageHero({
       title: "Build on the <em>WIF x402 rail.</em>",
-      ctas: `${btn("/playground", "Try the Playground")}${btn("/v1/models", "Model catalog", "ghost")}`,
+      ctas: `${btn("/quickstart", "WIF Quickstart")}${btn("/v1/models", "Model catalog", "ghost")}`,
     }) + sec(`${secHead("First call <em>in minutes.</em>")}${stepsList([
       "Use an EVM wallet on Robinhood Chain mainnet (chain ID 4663).",
       "Hold WIF for the payment and a small amount of native ETH for the first exact Permit2 token approval.",
@@ -952,6 +960,68 @@ function developers(c: Context) {
     `)}
     ${ctaFinal("Build with <em>Moltworld.</em>")}`;
   return renderPage(c, { path: "/developers", title: "Developers", description: "Moltworld SDKs, API reference, MCP servers and discovery endpoints for apps and agents.", body });
+}
+
+function quickstart(c: Context) {
+  if (config.paymentChain !== "robinhood") return c.redirect(`${docs()}/quickstart`, 302);
+  const chain = config.networkCaip2;
+  const token = config.paymentAssetAddress || "the configured WIF ERC-20 contract";
+  const body = `
+    ${pageHero({
+      crumbs: [["Developers", "/developers"]],
+      title: "WIF chat, <em>one approved call at a time.</em>",
+      ctas: `${btn("/playground", "Open the wallet playground")}${btn("/developers", "Developer hub", "ghost")}`,
+    })}
+    ${sec(`
+      ${secHead("For users <em>with a wallet.</em>")}
+      <p class="lead" data-reveal>Robinhood production currently supports chat-only x402 payments. Connect an injected EIP-1193 wallet in the browser, review the exact quote, and authorize each WIF payment yourself.</p>
+      ${facts([
+        ["wallet", "Use a compatible injected EIP-1193 wallet such as MetaMask or Robinhood Wallet."],
+        ["globe", `Switch to Robinhood Chain Mainnet (${chain}) and keep WIF in the wallet.`],
+        ["tag", `WIF is the ERC-20 payment token at <code>${esc(token)}</code> with 18 decimals.`],
+        ["shield", "First use may ask for an exact Permit2 allowance approval; that separate transaction needs native ETH for gas."],
+      ])}
+      ${stepsList([
+        "Connect your injected wallet in the Playground and switch to Robinhood Chain mainnet.",
+        "Choose an enabled chat model and submit the request to receive a free exact quote.",
+        "Review the quote-bound WIF amount and the receiving address in the 402 challenge.",
+        "Approve Permit2 once if your wallet asks, then sign the exact per-call payment in your wallet.",
+        "Receive the chat response and keep the signed Moltworld receipt for verification.",
+      ])}
+    `, { id: "user-wallet" })}
+    ${sec(`
+      ${secHead("For developers <em>building the flow.</em>")}
+      <p class="lead" data-reveal>Use the free quote endpoint first, then send the identical chat body to the chat endpoint. An x402 EVM client implementing ExactEvmScheme and Permit2 creates the <code>Payment-Signature</code>; the server's 402 challenge is authoritative.</p>
+      ${codeBlock(`const body = {
+  messages: [{ role: "user", content: "Hello from Robinhood Chain" }],
+  max_tokens: 200,
+};
+
+// Free: inspect the exact USD quote and WIF conversion snapshot.
+await fetch("/v1/quote", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ model: "gpt-4o", ...body }),
+});
+
+// 1. POST the same body to /v1/models/{model}/chat/completions.
+// 2. Receive HTTP 402 and decode Payment-Required.
+// 3. Let an x402 EVM ExactEvmScheme + Permit2 client sign it.
+// 4. Retry the byte-for-byte identical body with Payment-Signature.
+// Use an injected EIP-1193 wallet; WalletConnect is available when REOWN_PROJECT_ID is configured.`)}
+      ${facts([
+        ["bolt", "Live paid surface: POST /v1/models/{model}/chat/completions."],
+        ["receipt", "Successful responses include Moltworld-Request-Id and a signed Moltworld-Receipt."],
+        ["check", "Use /v1/models and /v1/quote for discovery and preflight; neither takes payment."],
+        ["tag", "Do not build against image, voice, video, marketplace, automatic refunds, or agent mandates on this rail."],
+      ])}
+    `, { id: "developer" })}
+    ${sec(`
+      ${secHead("Per-call signing <em>is live. Agent mandates are planned.</em>")}
+      <p class="note" data-reveal>The current Robinhood capability does not delegate spending to an agent. Remote MCP can discover and relay a caller-signed chat request, but it never signs or pays. Local budgets are application safeguards, not on-chain mandates. Algorand LogicSig mandates from the legacy deployment do not transfer to Robinhood Chain.</p>
+    `)}
+    ${ctaFinal("Review every quote. <em>Authorize only what you intend.</em>", `${btn("/playground", "Try a chat call")}${btn("/llms.txt", "Machine-readable guide", "ghost")}`)}`;
+  return renderPage(c, { path: "/quickstart", title: "WIF Quickstart", description: "Use an injected wallet or configured WalletConnect session to authorize chat-only WIF x402 payments, or integrate the exact EVM challenge as a developer.", body });
 }
 
 // ---------------------------------------------------------------------------
@@ -1400,6 +1470,7 @@ export function registerSite(app: Hono): string[] {
     "/products/marketplace": marketplace,
     "/products/receipts": receipts,
     "/pricing": pricing,
+    "/quickstart": quickstart,
     "/developers": developers,
     "/solutions": solutions,
     "/solutions/agents": solutionsAgents,

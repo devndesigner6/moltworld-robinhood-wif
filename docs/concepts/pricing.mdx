@@ -1,61 +1,40 @@
 ---
 title: "Pricing"
-description: "How a request's price is calculated."
+description: "How a chat request's USD quote and WIF amount are calculated."
 ---
 
-Each request has its own price, worked out from the body you send. There are no plans, credits or subscriptions.
+Each eligible chat request has its own USD quote, worked out from the body you send. There are no plans, credits, or subscriptions.
 
 ## The formula
 
 ```
-price = upstream cost for this body x (1 + margin), at least the minimum per call
+USD quote = upstream cost for this body x (1 + margin), at least the minimum per call
+WIF amount = ceil(USD quote / guarded WIF/USD price snapshot, in 18-decimal base units)
 ```
 
-- **Upstream cost** is what the model provider charges for this exact input. Chat rates are synced from OpenRouter's live price list. Image, voice and video use each provider's published rates.
-- **Margin** is 3%.
-- **Minimum** is $0.001 per call.
+- **Upstream cost** is what the chat provider charges for this exact input.
+- **Margin** is the configured gateway margin.
+- **Minimum** is the configured minimum per call.
+- **WIF conversion** uses a guarded live Robinhood pool-price snapshot. The exact 402 challenge is authoritative for the payment amount.
 
-The live values are in each quote's `marginPercent` and `costSource` fields.
+## What counts for chat
 
-## What counts for each modality
-
-| Modality | Priced on |
+| Modality | Priced on the current rail |
 | --- | --- |
 | Chat | Input tokens plus `max_tokens` at the model's rates |
-| Image | Number of images (`n`) and `size` |
-| Voice | Characters in `input` |
-| Video | Seconds (`duration`) |
 
 ## Get a quote
 
-`POST /v1/quote` takes the same body you would send to the model, plus a `model` field. It returns the amount the 402 challenge will ask for. It is free and needs no wallet.
+`POST /v1/quote` takes the same body you would send to the chat model, plus a `model` field. It is free and needs no wallet.
 
 ```bash
-curl -s https://moltworld.xyz/v1/quote \
+curl -s https://motoworld-wif.vercel.app/v1/quote \
   -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-image-1.5","prompt":"a lighthouse at dusk","n":1}'
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
 ```
 
-```json
-{
-  "model": "gpt-image-1.5",
-  "available": true,
-  "endpoint": "/v1/models/gpt-image-1.5/images/generations",
-  "payment_flow": "upfront",
-  "quote": {
-    "units": { "images": 1 },
-    "upstreamCostUsd": 0.07,
-    "marginPercent": 3,
-    "finalPriceUsd": 0.0721,
-    "formattedPrice": "$0.0721",
-    "microUsdc": 72100
-  },
-  "note": "Charged up front; refunded in full if the upstream fails."
-}
-```
+The response includes the USD quote, `network: "eip155:4663"`, the WIF ERC-20 asset, `decimals: 18`, and the quote-time WIF amount. The 402 challenge returned for the exact request is the value to authorize.
 
-Amounts are in micro-USDC: 1,000,000 equals $1.
+> **Important:** WIF is volatile. A displayed USD estimate is not a mark-to-market balance, and unused chat budget is not an automatic WIF rebate on this rail.
 
-## From-prices in the catalog
-
-`GET /v1/models` shows a `from_price` per model. It is the price of a small reference request, useful for comparing models. Your request's price depends on its body, so use a quote for an exact number.
+> **Legacy Algorand pricing:** Older docs may mention micro-USDC, image/voice/video units, or automatic rebates/refunds. Those examples describe the isolated legacy Algorand deployment only.

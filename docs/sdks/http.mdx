@@ -1,21 +1,24 @@
 ---
 title: "Raw HTTP"
-description: "Use Moltworld from any language with an x402 client, or by hand."
+description: "Use Moltworld from any language with an x402 EVM client."
 ---
 
-Any x402 client that supports the `exact` scheme on Algorand works. The steps below are what such a client does.
+On the current Robinhood deployment, use an x402 client that supports `exact` through `ExactEvmScheme` and Permit2. Only chat endpoints are enabled on the WIF rail.
 
 ## 1. Quote (optional)
 
 ```bash
-curl -s https://moltworld.xyz/v1/quote -H 'Content-Type: application/json' \
+curl -s https://motoworld-wif.vercel.app/v1/quote \
+  -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
 ```
+
+The response includes the USD quote and the quote-time WIF amount on `eip155:4663`. WIF is the 18-decimal ERC-20 payment token.
 
 ## 2. Get the challenge
 
 ```bash
-curl -si https://moltworld.xyz/v1/models/gpt-4o/chat/completions \
+curl -si https://motoworld-wif.vercel.app/v1/models/gpt-4o/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
 ```
@@ -25,22 +28,18 @@ HTTP/2 402
 payment-required: eyJ4NDAyVmVyc2lvbiI6Mi...
 ```
 
-Decode the header (base64 JSON). `accepts[0]` has `scheme`, `network`, `asset`, `amount` (micro-USDC), `payTo` and `extra`.
+Decode the header as x402 JSON. Inspect `scheme`, `network`, `asset`, `amount`, `payTo`, and the Permit2 transfer metadata before signing.
 
-## 3. Sign
+## 3. Sign with an EVM wallet
 
-Build an Algorand asset transfer of `amount` of `asset` to `payTo`, as described by the [x402 exact scheme for AVM](https://github.com/coinbase/x402). Sign it. Do not submit it.
-
-<Warning>
-Check `payTo` against the address on [`/health`](https://moltworld.xyz/health) and check `amount` against your own limit before you sign.
-</Warning>
+Use an x402 EVM client backed by an injected EIP-1193 wallet in the browser, or another explicitly controlled EVM signer. The first WIF payment may require a separate exact allowance approval to Permit2; that transaction needs native ETH for gas. Do not submit a substituted token, recipient, network, or amount.
 
 ## 4. Send the paid request
 
 Send the same body again with the encoded payment in `Payment-Signature`.
 
 ```bash
-curl -si https://moltworld.xyz/v1/models/gpt-4o/chat/completions \
+curl -si https://motoworld-wif.vercel.app/v1/models/gpt-4o/chat/completions \
   -H 'Content-Type: application/json' \
   -H "Payment-Signature: $PAYMENT" \
   -d '{"messages":[{"role":"user","content":"Hi"}],"max_tokens":200}'
@@ -50,4 +49,6 @@ The body must be byte for byte the same as in step 2.
 
 ## 5. Read the result
 
-The response has `Payment-Response`, `Moltworld-Request-Id` and `Moltworld-Receipt`. See [Verify receipts](/guides/verify-receipts).
+The response has `Payment-Response`, `Moltworld-Request-Id`, and `Moltworld-Receipt`. See [Verify receipts](/guides/verify-receipts).
+
+> **Legacy Algorand HTTP:** Older deployments used an AVM signer and USDC asset transfer. That flow is retained only for the isolated legacy Algorand rail and cannot pay the Robinhood WIF deployment.

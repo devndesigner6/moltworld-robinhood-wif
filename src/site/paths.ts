@@ -11,6 +11,7 @@ export const SITE_PATHS = [
   "/products/marketplace",
   "/products/receipts",
   "/pricing",
+  "/quickstart",
   "/developers",
   "/solutions",
   "/solutions/agents",

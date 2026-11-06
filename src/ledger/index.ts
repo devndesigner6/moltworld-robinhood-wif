@@ -444,13 +444,29 @@ export async function updateJob(
 
 export type CreditKind = "rebate" | "creator";
 
-export async function addCredit(account: string, kind: CreditKind, amountMicro: number, requestId: string): Promise<void> {
+export interface CreditAsset {
+  assetAddress: string;
+  assetSymbol: string;
+  assetDecimals: number;
+  network: string;
+}
+
+export async function addCredit(
+  account: string,
+  kind: CreditKind,
+  amountMicro: number,
+  requestId: string,
+  amountAtomic = String(amountMicro),
+  asset: CreditAsset = { assetAddress: "", assetSymbol: "USDC", assetDecimals: 6, network: "legacy" },
+): Promise<void> {
   if (amountMicro <= 0) return;
+  if (!/^\d+$/.test(amountAtomic)) throw new Error("Credit atomic amount must be a non-negative integer string.");
   const q = await db();
   await q.query(
-    `INSERT INTO mw_credits (account, kind, amount_micro, request_id) VALUES ($1,$2,$3,$4)
+    `INSERT INTO mw_credits (account, kind, amount_micro, amount_atomic, asset_address, asset_symbol, asset_decimals, network, request_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (request_id, kind) DO NOTHING`,
-    [account, kind, amountMicro, requestId]
+    [account, kind, amountMicro, amountAtomic, asset.assetAddress, asset.assetSymbol, asset.assetDecimals, asset.network, requestId]
   );
 }
 
@@ -468,6 +484,11 @@ export interface PayoutRecord {
   account: string;
   kind: CreditKind;
   amount_micro: number;
+  amount_atomic: string | null;
+  asset_address: string;
+  asset_symbol: string;
+  asset_decimals: number;
+  network: string;
   status: "pending" | "processing" | "sent" | "failed";
   txid: string | null;
   attempts: number;
@@ -476,25 +497,33 @@ export interface PayoutRecord {
 }
 
 /** Rolls unpaid credits at or above the threshold into pending payouts, one per account. */
-export async function createPayoutsFromCredits(kind: CreditKind, minMicro: number): Promise<PayoutRecord[]> {
+export async function createPayoutsFromCredits(kind: CreditKind, minMicro: number, asset?: CreditAsset, includeLegacyAlgorand = false): Promise<PayoutRecord[]> {
   const database = await getDatabase();
   return database.transaction(async (tx) => {
-    const due = await tx.query<{ account: string; total: any }>(
-      `SELECT account, SUM(amount_micro) AS total FROM mw_credits
-       WHERE kind = $1 AND payout_id IS NULL GROUP BY account HAVING SUM(amount_micro) >= $2`,
-      [kind, minMicro]
+    const due = await tx.query<{ account: string; total: any; total_atomic: string; asset_address: string; asset_symbol: string; asset_decimals: number; network: string }>(
+      `SELECT account, asset_address, asset_symbol, asset_decimals, network,
+              SUM(amount_micro) AS total, SUM(amount_atomic::numeric) AS total_atomic
+       FROM mw_credits WHERE kind = $1 AND payout_id IS NULL
+         AND ($3::text IS NULL OR
+           (asset_address = $3 AND asset_symbol = $4 AND asset_decimals = $5 AND network = $6) OR
+           ($7::boolean AND asset_address = '' AND asset_symbol = 'USDC' AND asset_decimals = 6 AND network = 'legacy'))
+       GROUP BY account, asset_address, asset_symbol, asset_decimals, network
+       HAVING SUM(amount_micro) >= $2`,
+      [kind, minMicro, asset?.assetAddress ?? null, asset?.assetSymbol ?? null, asset?.assetDecimals ?? null, asset?.network ?? null, includeLegacyAlgorand]
     );
     const created: PayoutRecord[] = [];
     for (const row of due.rows) {
       const id = newId("po");
       const amount = Number(row.total);
       const res = await tx.query<PayoutRecord>(
-        `INSERT INTO mw_payouts (id, account, kind, amount_micro, status) VALUES ($1,$2,$3,$4,'pending') RETURNING *`,
-        [id, row.account, kind, amount]
+        `INSERT INTO mw_payouts (id, account, kind, amount_micro, amount_atomic, asset_address, asset_symbol, asset_decimals, network, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending') RETURNING *`,
+        [id, row.account, kind, amount, String(row.total_atomic), row.asset_address, row.asset_symbol, row.asset_decimals, row.network]
       );
       await tx.query(
-        `UPDATE mw_credits SET payout_id = $1 WHERE kind = $2 AND account = $3 AND payout_id IS NULL`,
-        [id, kind, row.account]
+        `UPDATE mw_credits SET payout_id = $1 WHERE kind = $2 AND account = $3 AND payout_id IS NULL
+         AND asset_address = $4 AND asset_symbol = $5 AND asset_decimals = $6 AND network = $7`,
+        [id, kind, row.account, row.asset_address, row.asset_symbol, row.asset_decimals, row.network]
       );
       created.push(normalize(res.rows[0])!);
     }
@@ -502,13 +531,17 @@ export async function createPayoutsFromCredits(kind: CreditKind, minMicro: numbe
   });
 }
 
-export async function claimPendingPayouts(limit = 16): Promise<PayoutRecord[]> {
+export async function claimPendingPayouts(limit = 16, asset?: CreditAsset, includeLegacyAlgorand = false): Promise<PayoutRecord[]> {
   const q = await db();
   const res = await q.query<PayoutRecord>(
     `UPDATE mw_payouts SET status = 'processing', attempts = attempts + 1, updated_at = now()
-     WHERE id IN (SELECT id FROM mw_payouts WHERE status = 'pending' ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED)
+     WHERE id IN (SELECT id FROM mw_payouts WHERE status = 'pending'
+       AND ($2::text IS NULL OR
+         (asset_address = $2 AND asset_symbol = $3 AND asset_decimals = $4 AND network = $5) OR
+         ($6::boolean AND asset_address = '' AND asset_symbol = 'USDC' AND asset_decimals = 6 AND network = 'legacy'))
+       ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED)
      RETURNING *`,
-    [limit]
+    [limit, asset?.assetAddress ?? null, asset?.assetSymbol ?? null, asset?.assetDecimals ?? null, asset?.network ?? null, includeLegacyAlgorand]
   );
   return res.rows.map((r) => normalize(r)!);
 }
@@ -595,6 +628,8 @@ export interface ListingRecord {
   price_micro: number;
   input_example: any;
   signing_secret: string;
+  /** EIP-712 nonce for Robinhood listings; legacy Algorand listings may be null. */
+  listing_nonce: string | null;
   status: "pending" | "approved" | "rejected" | "suspended";
   review_note: string | null;
   created_at: Date;
@@ -604,9 +639,9 @@ export interface ListingRecord {
 export async function createListing(l: Omit<ListingRecord, "created_at" | "updated_at" | "status" | "review_note">) {
   const q = await db();
   const res = await q.query<ListingRecord>(
-    `INSERT INTO mw_listings (id, slug, name, description, creator, upstream_url, price_micro, input_example, signing_secret, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending') ON CONFLICT (slug) DO NOTHING RETURNING *`,
-    [l.id, l.slug, l.name, l.description, l.creator, l.upstream_url, l.price_micro, JSON.stringify(l.input_example ?? null), l.signing_secret]
+    `INSERT INTO mw_listings (id, slug, name, description, creator, upstream_url, price_micro, input_example, signing_secret, listing_nonce, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending') ON CONFLICT DO NOTHING RETURNING *`,
+    [l.id, l.slug, l.name, l.description, l.creator, l.upstream_url, l.price_micro, JSON.stringify(l.input_example ?? null), l.signing_secret, l.listing_nonce ?? null]
   );
   return normalize(res.rows[0]);
 }
@@ -640,15 +675,19 @@ export async function setListingStatus(id: string, status: ListingRecord["status
   return res.rows.length === 1;
 }
 
-export async function creatorEarnings(creator: string): Promise<{ unpaidMicro: number; paidMicro: number; calls: number }> {
+export async function creatorEarnings(creator: string, assetAddress?: string, network?: string, includeLegacyAlgorand = false): Promise<{ unpaidMicro: number; paidMicro: number; unpaidAtomic: string; paidAtomic: string; calls: number }> {
   const q = await db();
   const res = await q.query<any>(
-    `SELECT COALESCE(SUM(c.amount_micro) FILTER (WHERE c.payout_id IS NULL), 0) AS unpaid,
+    `SELECT COALESCE(SUM(c.amount_micro) FILTER (WHERE p.status IS DISTINCT FROM 'sent'), 0) AS unpaid,
             COALESCE(SUM(c.amount_micro) FILTER (WHERE p.status = 'sent'), 0) AS paid,
+            COALESCE(SUM(c.amount_atomic::numeric) FILTER (WHERE p.status IS DISTINCT FROM 'sent'), 0)::text AS unpaid_atomic,
+            COALESCE(SUM(c.amount_atomic::numeric) FILTER (WHERE p.status = 'sent'), 0)::text AS paid_atomic,
             COUNT(*) AS calls
      FROM mw_credits c LEFT JOIN mw_payouts p ON p.id = c.payout_id
-     WHERE c.kind = 'creator' AND c.account = $1`,
-    [creator]
+     WHERE c.kind = 'creator' AND c.account = $1
+       AND ($2::text IS NULL OR ($2 IS NOT NULL AND c.asset_address = $2 AND c.network = $3)
+         OR ($4::boolean AND c.asset_address = '' AND c.asset_symbol = 'USDC' AND c.asset_decimals = 6 AND c.network = 'legacy'))`,
+    [creator, assetAddress ?? null, network ?? null, includeLegacyAlgorand]
   );
-  return { unpaidMicro: Number(res.rows[0].unpaid), paidMicro: Number(res.rows[0].paid), calls: Number(res.rows[0].calls) };
+  return { unpaidMicro: Number(res.rows[0].unpaid), paidMicro: Number(res.rows[0].paid), unpaidAtomic: String(res.rows[0].unpaid_atomic), paidAtomic: String(res.rows[0].paid_atomic), calls: Number(res.rows[0].calls) };
 }

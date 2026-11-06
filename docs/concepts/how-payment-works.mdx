@@ -3,57 +3,51 @@ title: "How payment works"
 description: "The x402 flow on Moltworld, from quote to receipt."
 ---
 
-Moltworld uses [x402](https://x402.org), the HTTP 402 payment protocol, with the `exact` scheme on Algorand. Payments are USDC transfers to Moltworld's published address, verified and settled by the GoPlausible facilitator.
+## Current Robinhood WIF rail
 
-## The flow
+Moltworld uses [x402](https://x402.org) with the `exact` scheme implemented by `ExactEvmScheme` on Robinhood Chain mainnet (`eip155:4663`). Eligible **chat** requests are paid in WIF, an 18-decimal ERC-20 token. The browser signer is the user's injected EIP-1193 wallet; each call is authorized separately.
 
 <Steps>
   <Step title="Send the request without payment">
-    `POST` the JSON body to the model endpoint. Moltworld checks the body first. If it is invalid you get `400` and nothing is asked of you.
+    `POST` the JSON body to the chat model endpoint. Moltworld validates the body before asking for payment. Invalid input gets `400` and nothing is signed.
   </Step>
   <Step title="Receive 402 Payment Required">
-    For a valid body the response is `402` with a `Payment-Required` header. It is base64 JSON listing the network, the USDC asset, the `payTo` address and the exact amount for this body.
+    A valid unpaid request returns `402` with a `Payment-Required` header. Decode it to inspect the Robinhood network, WIF contract, Permit2 metadata, `payTo` address, and exact token amount for this body.
   </Step>
-  <Step title="Sign the payment">
-    Your client builds a USDC asset transfer for that amount and signs it. Nothing is sent to the chain yet.
+  <Step title="Review and sign the payment">
+    Your x402 EVM client asks the injected EIP-1193 wallet to authorize the exact amount. The first use may also require an explicit WIF approval to Permit2; that separate approval needs native ETH for gas.
   </Step>
-  <Step title="Send the request again with Payment-Signature">
-    Send the same body with the signed payment in the `Payment-Signature` header. Moltworld has the facilitator verify it, runs the model and settles the payment.
+  <Step title="Retry with Payment-Signature">
+    Send the identical body again with the signed payment in `Payment-Signature`. The facilitator verifies and settles it.
   </Step>
-  <Step title="Get the result and the receipt">
-    The response carries `Payment-Response` (the settlement), `Moltworld-Request-Id` and `Moltworld-Receipt`.
+  <Step title="Get the result and receipt">
+    The response carries `Payment-Response`, `Moltworld-Request-Id`, and `Moltworld-Receipt`.
   </Step>
 </Steps>
 
 <Note>
-The body you pay for must be the body you send. The price is tied to the body, so changing it between the 402 and the paid retry produces a different price and the payment is rejected.
+The body you authorize must be the body you send. The signed 402 challenge is authoritative; do not substitute a recipient, token, network, or amount from a cached quote.
 </Note>
 
-## When the payment settles
+## Current support boundaries
 
-| Modality | Settles | If the model fails |
-| --- | --- | --- |
-| Chat | After the answer is produced | The payment is never settled |
-| Image, voice | Before the model runs | Refunded on-chain |
-| Video | Before the job starts | Refunded on-chain when the job fails |
-| Marketplace | After the creator's API answers | The payment is never settled |
+Robinhood production is chat-only. Image, voice, video, marketplace payments, automatic WIF refunds, and agent mandates are not enabled. A remote MCP server can relay a caller-signed chat payment but never signs or pays on its own. Agent mandates are planned, not live.
 
-## Retries and duplicate payments
+## Retries
 
-A payment is identified by its Algorand transaction id. If your connection drops after you paid, send the same request with the same `Payment-Signature`. You get the original response back with `Moltworld-Replay: true` and you are not charged again. A payment buys one request only: it can never pay for a second one, and a payment that is still being processed is refused with `duplicate_payment_in_flight`.
-
-## Parallel requests
-
-Unsettled requests from one wallet are capped at that wallet's USDC balance on-chain. This stops a burst of parallel requests from spending more than the wallet holds.
+A payment is bound to one request. If the connection drops after authorization, retry the same request with the same `Payment-Signature`; a completed request is replayed rather than charged twice.
 
 ## Response headers
 
 | Header | Meaning |
 | --- | --- |
-| `Payment-Required` | On 402: what to pay, base64 JSON |
+| `Payment-Required` | On 402: what the wallet must authorize, encoded as x402 JSON |
 | `Payment-Response` | On success: the settlement result |
-| `Moltworld-Request-Id` | Id to look up the receipt, job or refund |
-| `Moltworld-Receipt` | Signed receipt, base64url JSON. See [Receipts](/concepts/receipts) |
-| `Moltworld-Quote` | The price of this body, such as `$0.0618` |
-| `Moltworld-Replay` | `true` when the response was replayed for a reused payment |
-| `Moltworld-Refund` | `pending` when the model failed after settlement and a refund was queued |
+| `Moltworld-Request-Id` | Id used to look up the receipt |
+| `Moltworld-Receipt` | Signed receipt, base64url JSON |
+| `Moltworld-Quote` | USD quote for this body |
+| `Moltworld-Replay` | `true` when a reused payment returns the original response |
+
+## Legacy Algorand rail
+
+The older deployment used Algorand `exact` payments in USDC and supported additional media, refunds, marketplace, and LogicSig mandate flows. Those behaviors remain documented for legacy operators but are not capabilities of the Robinhood WIF deployment.

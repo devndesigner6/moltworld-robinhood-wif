@@ -3,7 +3,7 @@
   "info": {
     "title": "Moltworld API",
     "version": "3.0.0",
-    "description": "AI models for apps and agents, paid per request in USDC on Algorand through x402.\n\nPaid endpoints return HTTP 402 with a `Payment-Required` header until the request carries a valid `Payment-Signature` header from an x402 client."
+    "description": "Current Robinhood deployment: chat models paid per request in WIF on Robinhood Chain (`eip155:4663`) through x402 ExactEvmScheme and an EVM wallet. WIF is an 18-decimal ERC-20 and first use may require an exact Permit2 approval. Image, voice, video, marketplace, automatic refunds, and agent mandates are not enabled on this rail.\n\nPaid chat endpoints return HTTP 402 with a `Payment-Required` header until the request carries a valid `Payment-Signature` header from an x402 EVM client."
   },
   "servers": [
     {

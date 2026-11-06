@@ -35,6 +35,7 @@ import {
   handleListingGet,
   handleMarketCall,
   handleMarketList,
+  marketplaceEnabledMiddleware,
   prepareMarketRequest,
 } from "./routes/market.js";
 import {
@@ -127,6 +128,8 @@ export function createApp(): { app: Hono; init: () => Promise<void> } {
   app.post("/v1/mandates/:id/revoke", handleMandateRevoke);
 
   // Marketplace (free parts)
+  app.use("/v1/market", marketplaceEnabledMiddleware);
+  app.use("/v1/market/*", marketplaceEnabledMiddleware);
   app.get("/v1/market", handleMarketList);
   app.post("/v1/market/listings", handleListingCreate);
   app.get("/v1/market/listings/:slug", handleListingGet);

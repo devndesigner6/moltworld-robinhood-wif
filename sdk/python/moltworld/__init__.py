@@ -1,10 +1,11 @@
-"""Moltworld Python SDK for x402 Algorand and Robinhood Chain WIF payments.
+"""Moltworld Python SDK for Algorand legacy and x402 WIF EVM calls.
 
-Algorand remains the default legacy path. For WIF chat payments, pass an EVM
-private key; Permit2 signing is delegated to the official x402 Python SDK.
+The WIF private-key payer is restricted to explicit local development with a
+dedicated EOA and process-local caps; it is not an owner-authorized mandate.
+Permit2 signing is delegated to the official x402 Python SDK. Never give an
+agent a user's master wallet key. The live WIF model surface is chat-only.
 
     from moltworld import MoltworldClient
-    client = MoltworldClient(evm_private_key="0x...", max_per_request_usd=0.25, budget_usd=5)
     result = client.chat("gpt-4o", [{"role": "user", "content": "Hello"}])
 """
 

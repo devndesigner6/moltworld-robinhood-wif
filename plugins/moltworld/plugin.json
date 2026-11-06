@@ -2,10 +2,10 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "moltworld",
   "version": "1.0.0",
-  "description": "Moltworld pay-per-request chat on Robinhood Chain: WIF quotes and caller-signed x402 chat, with legacy Algorand compatibility.",
+  "description": "Moltworld pay-per-request chat paid in WIF through x402, with legacy Algorand compatibility.",
   "author": { "name": "Moltworld", "url": "https://motoworld-wif.vercel.app" },
   "homepage": "https://motoworld-wif.vercel.app/llms.txt",
-  "repository": "https://github.com/devndesigner6/moltworld-robinhood-wif",
+  "repository": "https://github.com/devndesigner6/moltworld-x402-gateway",
   "license": "MIT",
   "keywords": ["robinhood-chain", "wif", "x402", "mcp", "ai-models"],
   "extensions": {

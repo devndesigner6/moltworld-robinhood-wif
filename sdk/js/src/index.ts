@@ -207,6 +207,10 @@ export class MoltworldClient {
     return (await this.getJson(`/v1/models${modality ? `?modality=${modality}` : ""}`)).data;
   }
 
+  async marketplace() {
+    return this.getJson("/v1/market");
+  }
+
   /** Exact price of a request body, without paying. */
   async quote(model: string, body: Record<string, unknown>) {
     const res = await this.baseFetch(`${this.baseUrl}/v1/quote`, {
@@ -274,7 +278,8 @@ export class MoltworldClient {
   }
 
   market(slug: string, body: Record<string, unknown>) {
-    return this.call(`/v1/market/${slug}/call`, body);
+    if (!/^[a-z0-9][a-z0-9-]{2,47}$/.test(slug)) throw new Error("Marketplace slug must be 3-48 lowercase letters, numbers, or hyphens.");
+    return this.call(`/v1/market/${encodeURIComponent(slug)}/call`, body);
   }
 
   async job(jobId: string) {

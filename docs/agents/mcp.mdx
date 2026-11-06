@@ -1,6 +1,6 @@
 ---
 title: "MCP"
-description: "Remote caller-signed WIF chat and a local Robinhood WIF MCP payer."
+description: "Caller-signed WIF chat relay and local-development MCP tools."
 ---
 
 Moltworld works with any agent that speaks the [Model Context Protocol](https://modelcontextprotocol.io).
@@ -8,22 +8,32 @@ Moltworld works with any agent that speaks the [Model Context Protocol](https://
 | | Remote server | Local server |
 | --- | --- | --- |
 | Address | `https://motoworld-wif.vercel.app/mcp` (streamable HTTP) | `moltworld-mcp` from `moltworld-sdk` (stdio) |
-| Holds a wallet | No | A dedicated EVM key for Robinhood WIF, or the legacy Algorand mnemonic/mandate |
-| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | Pay for chat with WIF within local USD caps |
-| Best for | A separate wallet service or caller approval | An autonomous local agent |
+| Holds a wallet | No | A dedicated EVM key only for local development; legacy Algorand settings are separate |
+| The agent can | List chat models, quote, relay caller-signed WIF chat, show spend rail | In local development, pay with a dedicated EOA under process-local USD caps |
+| Best for | A separate wallet service or caller approval | Local testing only; never use the owner's wallet key |
 
-Robinhood mode is chat-only. Image, speech, video, mandates, refunds, and marketplace operations are not live on the WIF rail.
+The live WIF model surface is chat-only. Image, speech, video, agent mandates, automatic refunds, and marketplace payments are not enabled. The remote server never holds a wallet or signs; the user's wallet or a separate approved signer must create each payment signature.
 
 ## Local Robinhood WIF server
 
-Generate a dedicated EVM key. The command prints only its derived address; the secret is saved with mode `0600`.
+The local WIF payer is for development only. It signs with a separate EOA key and process-local budgets; those budgets are not an on-chain cap or user-authorized mandate. Never use the owner's/master wallet key. The safer user-approved path is the remote relay below.
+
+Generate a dedicated disposable EVM key. The command prints only its derived address; the secret is saved with mode `0600`.
 
 ```bash
 npx -y -p moltworld-sdk moltworld-mcp evm-keygen
 npx -y -p moltworld-sdk moltworld-mcp
 ```
 
-The key may instead be supplied directly with `MOLTWORLD_EVM_PRIVATE_KEY`. Configure the local server with:
+The key may instead be supplied through `MOLTWORLD_EVM_PRIVATE_KEY` in your local environment. Autopay is refused unless local mode, a dedicated-key role, and the explicit acknowledgement below are set:
+
+```bash
+export MOLTWORLD_ENV=local
+export MOLTWORLD_EVM_KEY_ROLE=dedicated
+export MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY=I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE
+```
+
+Configure the local server with:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -33,10 +43,12 @@ The key may instead be supplied directly with `MOLTWORLD_EVM_PRIVATE_KEY`. Confi
 | `MOLTWORLD_MAX_PER_REQUEST_USD` | `0.50` | Local refusal cap before signing |
 | `MOLTWORLD_BUDGET_USD` | `5` | Local session budget; not an on-chain cap |
 | `MOLTWORLD_PAYMENT_TO` | gateway health `pay_to` | Optional expected receiving address; mismatches are refused |
+| `MOLTWORLD_EVM_KEY_ROLE` | | Must be `dedicated`; master/primary keys are refused |
+| `MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY` | | Exact acknowledgement shown above; local development only |
 
 The SDK checks the WIF allowance to the canonical Permit2 contract with read-only RPC before signing. If it is insufficient, it refuses without sending an approval transaction. Approve the exact required WIF amount to Permit2 explicitly first; the approval transaction needs native ETH for gas.
 
-Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). Tools are `moltworld_models`, `moltworld_quote`, `moltworld_chat`, and `moltworld_spend`.
+Robinhood Chain mainnet uses chain ID `4663` (`eip155:4663`). Tools include `moltworld_models`, `moltworld_quote`, `moltworld_chat`, `moltworld_spend`, and gated marketplace tools. Marketplace calls return unavailable until the operator enables that still-incomplete surface.
 
 ## Legacy Algorand server
 
@@ -55,7 +67,7 @@ npx -y -p moltworld-sdk moltworld-mcp
 { "mcpServers": { "moltworld": { "type": "http", "url": "https://motoworld-wif.vercel.app/mcp" } } }
 ```
 
-In Robinhood mode the remote server registers only `list_models`, `quote_request`, `chat`, and `spend`. The `chat` tool relays the caller's `Payment-Signature`; it never holds a key, signs, approves Permit2, or pays. Remote spend information describes the WIF rail and local budgets; it is not an on-chain cap.
+In WIF mode the remote server exposes `list_models`, `quote_request`, `chat`, `spend`, and caller-signed marketplace relay tools. Marketplace routes are disabled by default and return unavailable before payment. The `chat` and marketplace tools relay the caller's `Payment-Signature`; the remote server never holds a key, signs, approves Permit2, or pays. Remote spend information describes the payment rail; it is not an on-chain cap.
 
 The legacy Algorand remote surface continues to expose its 402, signed-request, receipt, and job helpers.
 

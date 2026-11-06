@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
+import warnings
 import time
 import urllib.error
 import urllib.request
@@ -24,6 +26,48 @@ ALGOD = {
     "testnet": "https://testnet-api.algonode.cloud",
 }
 DEFAULT_API_ORIGIN = "https://motoworld-wif.vercel.app"
+EVM_EOA_AUTOPAY_ACK = "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE"
+
+
+def _assert_evm_eoa_autopay_allowed() -> None:
+    """Require an explicit local-only acknowledgement for unrestricted EOA keys."""
+    environments = [
+        os.environ.get("NODE_ENV", "").strip().lower(),
+        os.environ.get("MOLTWORLD_ENV", "").strip().lower(),
+    ]
+    if "production" in environments:
+        raise ValueError(
+            "Refusing EVM EOA auto-payment in production. This key has no "
+            "owner-authorized on-chain cap or mandate; use caller-signed/browser "
+            "or mandate architecture instead."
+        )
+    active_environments = [environment for environment in environments if environment]
+    if not active_environments or any(environment not in {"local", "development", "dev", "test"} for environment in active_environments):
+        raise ValueError(
+            "Refusing EVM EOA auto-payment outside local/development environments. "
+            "This key has no owner-authorized on-chain cap or mandate."
+        )
+    role = os.environ.get("MOLTWORLD_EVM_KEY_ROLE", "").strip().lower()
+    if role != "dedicated":
+        raise ValueError(
+            "Refusing EVM EOA auto-payment for a master/primary wallet key. "
+            "Use only a dedicated, disposable local EOA; this path is not a mandate."
+        )
+    if os.environ.get("MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY") != EVM_EOA_AUTOPAY_ACK:
+        raise ValueError(
+            "EVM EOA auto-payment is disabled by default. For local/development "
+            f"only, set MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY={EVM_EOA_AUTOPAY_ACK}. "
+            "Use a dedicated disposable EOA, never a user's master key. The "
+            "budget is local/process-only, not an owner-authorized on-chain cap "
+            "or mandate."
+        )
+    warnings.warn(
+        "WARNING: local EVM EOA auto-payment is enabled. This is an unrestricted "
+        "dedicated EOA key with local/process budgets only—not an owner-authorized "
+        "on-chain cap or mandate. Never use a user's master key.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 class MoltworldError(Exception):
@@ -100,6 +144,8 @@ class MoltworldClient:
         if evm_private_key and (private_key or mnemonic or mandate):
             raise ValueError("Choose either Algorand credentials or evm_private_key, not both.")
         self._evm = evm_private_key is not None
+        if self._evm:
+            _assert_evm_eoa_autopay_allowed()
         if not self._evm and not private_key and not self._mandate:
             raise ValueError("MoltworldClient needs private_key (algosdk base64), mnemonic, evm_private_key, or mandate with agent_key.")
         self._sk = private_key
@@ -293,8 +339,10 @@ class MoltworldClient:
         return data["quote"]
 
     def call(self, path: str, body: Dict[str, Any]) -> PaidResult:
-        if self._evm and not re.search(r"/chat/completions$", path):
-            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
+        is_chat = bool(re.fullmatch(r"/v1/models/[^/]+/chat/completions", path))
+        is_market_call = bool(re.fullmatch(r"/v1/market/[a-z0-9][a-z0-9-]{2,47}/call", path))
+        if self._evm and not (is_chat or is_market_call):
+            raise MoltworldError("WIF mode supports chat and marketplace calls only; no payment signature was created.", 400, "wif_endpoint_unsupported")
         request_bytes = json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}
         status, resp_headers, raw = self._request("POST", path, request_bytes, headers)
@@ -340,7 +388,7 @@ class MoltworldClient:
 
     def image(self, model: str, prompt: str, n: int = 1, size: Optional[str] = None) -> PaidResult:
         if self._evm:
-            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
+            raise MoltworldError("WIF mode supports chat and marketplace calls only; no payment signature was created.", 400, "wif_endpoint_unsupported")
         body: Dict[str, Any] = {"prompt": prompt, "n": n}
         if size:
             body["size"] = size
@@ -348,7 +396,7 @@ class MoltworldClient:
 
     def speech(self, model: str, text: str, voice: Optional[str] = None) -> PaidResult:
         if self._evm:
-            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
+            raise MoltworldError("WIF mode supports chat and marketplace calls only; no payment signature was created.", 400, "wif_endpoint_unsupported")
         body: Dict[str, Any] = {"input": text}
         if voice:
             body["voice"] = voice
@@ -356,7 +404,7 @@ class MoltworldClient:
 
     def video(self, model: str, prompt: str, duration: Optional[int] = None, wait: bool = False, timeout: float = 900) -> PaidResult:
         if self._evm:
-            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
+            raise MoltworldError("WIF mode supports chat and marketplace calls only; no payment signature was created.", 400, "wif_endpoint_unsupported")
         body: Dict[str, Any] = {"prompt": prompt}
         if duration:
             body["duration"] = duration
@@ -366,8 +414,8 @@ class MoltworldClient:
         return result
 
     def market(self, slug: str, body: Dict[str, Any]) -> PaidResult:
-        if self._evm:
-            raise MoltworldError("WIF mode supports chat only; no payment signature was created.", 400, "wif_chat_only")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,47}", slug):
+            raise MoltworldError("Marketplace slug must be 3-48 lowercase letters, numbers, or hyphens.", 400, "invalid_market_slug")
         return self.call(f"/v1/market/{slug}/call", body)
 
     def job(self, job_id: str) -> Dict[str, Any]:

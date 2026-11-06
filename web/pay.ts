@@ -1,5 +1,5 @@
 // Browser payments for the Playground: legacy Algorand wallet/mandate support plus
-// Robinhood Chain WIF payments through an injected MetaMask or Robinhood Wallet provider.
+// Robinhood Chain WIF payments through an injected EIP-1193 provider or WalletConnect.
 // Bundled by `pnpm vendor`.
 import algosdk from "algosdk";
 import { custom, NetworkConfigBuilder, NetworkId, WalletManager, type WalletAdapterConfig } from "@txnlab/use-wallet";
@@ -14,6 +14,8 @@ export interface PayConfig {
   network: "mainnet" | "testnet";
   paymentChain?: "algorand" | "robinhood";
   chainId?: number;
+  /** Public Reown/WalletConnect project id for external mobile-wallet connections. */
+  reownProjectId?: string;
   paymentAssetAddress?: string;
   paymentAssetSymbol?: string;
   paymentAssetDecimals?: number;
@@ -49,6 +51,12 @@ type Eip1193Provider = {
   removeListener?(event: string, listener: (...args: any[]) => void): void;
 };
 
+type ConnectableEip1193Provider = Eip1193Provider & {
+  connected?: boolean;
+  connect?(opts?: { chains?: number[] }): Promise<void>;
+  disconnect?(): Promise<void>;
+};
+
 declare global {
   interface Window { ethereum?: Eip1193Provider }
 }
@@ -73,20 +81,62 @@ function robinhoodChain(cfg: PayConfig) {
 }
 
 async function createEvmWallets(cfg: PayConfig): Promise<Wallets> {
-  const provider = window.ethereum;
+  const injectedProvider = window.ethereum;
   const chain = robinhoodChain(cfg);
   const token = cfg.paymentAssetAddress as Address;
   const publicClient = createPublicClient({ chain, transport: http(cfg.robinhoodRpcUrl) });
   let address: Address | null = null;
+  let activeProvider: ConnectableEip1193Provider | null = null;
+  let walletConnectPromise: Promise<ConnectableEip1193Provider> | null = null;
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
-  const accountsChanged = (accounts: string[]) => { address = (accounts?.[0] as Address | undefined) ?? null; notify(); };
-  const chainChanged = () => { notify(); };
-  provider?.on?.("accountsChanged", accountsChanged);
-  provider?.on?.("chainChanged", chainChanged);
+  const attachProvider = (provider: ConnectableEip1193Provider) => {
+    provider.on?.("accountsChanged", (accounts: string[]) => {
+      if (activeProvider === provider) {
+        address = (accounts?.[0] as Address | undefined) ?? null;
+        notify();
+      }
+    });
+    provider.on?.("chainChanged", () => { if (activeProvider === provider) notify(); });
+    provider.on?.("disconnect", () => {
+      if (activeProvider === provider) {
+        activeProvider = null;
+        address = null;
+        notify();
+      }
+    });
+  };
+  if (injectedProvider) attachProvider(injectedProvider);
 
-  async function requireChain() {
-    if (!provider) throw new Error("Install MetaMask or Robinhood Wallet to connect an EVM account.");
+  async function walletConnectProvider(): Promise<ConnectableEip1193Provider> {
+    if (!cfg.reownProjectId) throw new Error("External wallet connections are not configured on this deployment.");
+    if (!walletConnectPromise) {
+      walletConnectPromise = (async () => {
+        const { EthereumProvider } = await import("@walletconnect/ethereum-provider");
+        const provider = await EthereumProvider.init({
+          projectId: cfg.reownProjectId!,
+          chains: [chain.id],
+          rpcMap: { [chain.id]: chain.rpcUrls.default.http[0] },
+          showQrModal: true,
+          qrModalOptions: { enableMobileFullScreen: true },
+          metadata: {
+            name: "Moltworld",
+            description: "Moltworld x402 pay-per-request AI gateway",
+            url: cfg.origin,
+            icons: [],
+          },
+        });
+        attachProvider(provider);
+        return provider;
+      })().catch((err) => {
+        walletConnectPromise = null;
+        throw err;
+      });
+    }
+    return walletConnectPromise;
+  }
+
+  async function requireChain(provider: ConnectableEip1193Provider) {
     const target = `0x${chain.id.toString(16)}`;
     const current = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
     if (current === target.toLowerCase()) return;
@@ -106,23 +156,37 @@ async function createEvmWallets(cfg: PayConfig): Promise<Wallets> {
   }
 
   function walletClient() {
-    if (!provider || !address) throw new Error("Connect an EVM wallet first.");
-    return createWalletClient({ account: address, chain, transport: evmCustom(provider as any) });
+    if (!activeProvider || !address) throw new Error("Connect an EVM wallet first.");
+    return createWalletClient({ account: address, chain, transport: evmCustom(activeProvider as any) });
   }
 
   return {
-    options: provider ? [{ id: "injected", name: "MetaMask / Robinhood Wallet", icon: "" }] : [],
+    options: [
+      ...(injectedProvider ? [{ id: "injected", name: "Browser wallet", icon: "" }] : []),
+      ...(cfg.reownProjectId ? [{ id: "walletconnect", name: "WalletConnect (mobile wallets)", icon: "" }] : []),
+    ],
     get address() { return address; },
     async connect(id) {
-      if (id !== "injected" || !provider) throw new Error("No compatible EVM wallet was found.");
+      let provider: ConnectableEip1193Provider;
+      if (id === "injected" && injectedProvider) provider = injectedProvider;
+      else if (id === "walletconnect") provider = await walletConnectProvider();
+      else throw new Error("No compatible EVM wallet was found.");
+      activeProvider = provider;
+      if (id === "walletconnect" && !provider.connected) await provider.connect?.({ chains: [chain.id] });
       const accounts = await provider.request({ method: "eth_requestAccounts" });
       if (!Array.isArray(accounts) || !accounts[0]) throw new Error("The wallet returned no accounts.");
-      await requireChain();
+      await requireChain(provider);
       address = accounts[0] as Address;
       notify();
       return address;
     },
-    async disconnect() { address = null; notify(); },
+    async disconnect() {
+      const provider = activeProvider;
+      if (provider?.disconnect && provider !== injectedProvider) await provider.disconnect();
+      activeProvider = null;
+      address = null;
+      notify();
+    },
     signer() {
       if (!address) throw new Error("Connect an EVM wallet first.");
       const wallet = walletClient();
@@ -146,7 +210,7 @@ async function createEvmWallets(cfg: PayConfig): Promise<Wallets> {
       } catch { return null; }
     },
     async ensureEvmAllowance(asset, amount, onStatus) {
-      if (!address || !provider) throw new Error("Connect an EVM wallet first.");
+      if (!address || !activeProvider) throw new Error("Connect an EVM wallet first.");
       if (asset.toLowerCase() !== String(token).toLowerCase()) throw new Error("Refusing approval for a token other than WIF.");
       const required = BigInt(amount);
       const allowance = await publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: "allowance", args: [address, PERMIT2_ADDRESS] });

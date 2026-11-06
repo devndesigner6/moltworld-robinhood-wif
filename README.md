@@ -1,8 +1,8 @@
-# Moltworld — Robinhood Chain / WIF migration
+# Moltworld x402 Gateway
 
-Moltworld is an x402 pay-per-request gateway for AI services. This repository is the migration worktree for settling eligible requests in **WIF (World Is Flat)** on **Robinhood Chain** instead of USDC on Algorand.
+Moltworld is an x402 pay-per-request gateway for AI services. The current WIF payment rail uses **WIF (World Is Flat)** on **Robinhood Chain**; the network reference is technical and does not imply affiliation or endorsement.
 
-> **Migration status:** Robinhood WIF checkout is chat-only. The TypeScript SDK, Python SDK, local MCP payer, and remote MCP relay support that WIF chat path. Algorand-specific mandates, creator marketplace/payouts, image/voice/video, and automatic WIF refunds are not migrated. A successful mainnet payment still requires a user wallet to approve any first-use allowance and sign a real payment.
+> **Current status:** WIF checkout supports chat only. A user-controlled EVM wallet signs each payment; external mobile-wallet connectivity requires a Reown project ID. Agent mandates are not implemented. The WIF marketplace code is opt-in and disabled by default; creator credits require manual reconciliation and are not an escrow or automated payout service. Python/local MCP EOA auto-payment is development-only, requires explicit opt-in, and is not a user-authorized on-chain spending mandate. Image, voice, video, and automatic WIF refunds are not enabled.
 
 ## Payment addresses
 
@@ -13,7 +13,7 @@ These are different kinds of addresses and must not be interchanged:
 | WIF token contract (`WIF_TOKEN_ADDRESS`) | `0x5173b8eA6923c2d40267890D45C46a3480954773` | ERC-20 asset paid by users; 18 decimals |
 | Merchant recipient (`EVM_ADDRESS`) | `0x0cbF84496640E7441eF743f8F03189Aa8C0B8cb6` | Your wallet; x402 settlements are sent here |
 
-The backend only needs the public recipient address. **Never provide or commit its seed phrase or private key.** A user connects MetaMask or Robinhood Wallet and authorizes a WIF payment. First use may require an exact ERC-20 approval to Permit2; that separate approval transaction consumes native ETH for gas. The x402 payment itself is in WIF.
+The backend only needs the public recipient address. **Never provide or commit a seed phrase or private key.** A user connects a supported EVM wallet and authorizes a WIF payment. First use may require an exact ERC-20 approval to Permit2; that separate approval transaction consumes native ETH for gas. The x402 payment itself is in WIF.
 
 ## Current payment flow
 
@@ -51,12 +51,12 @@ See [`.env.example`](.env.example) for the service settings. Production requires
 ## Scope not yet migrated
 
 - WIF settlement/refunds for image, voice, and video calls.
-- Creator marketplace listing signatures, royalty accounting, and WIF payouts.
+- WIF marketplace is implemented only as a disabled-by-default stage: EIP-712 listing verification and exact WIF creator credits exist, but payout verification/reconciliation and operational terms still need completion before it can be enabled.
 - Algorand mandate/LogicSig replacement with an EVM-compatible delegation model.
 - A real mainnet wallet payment and settlement/receipt check. The current validation has not signed or broadcast a user payment.
 
-The code deliberately blocks these legacy-only payment actions on the Robinhood rail rather than silently routing them through Algorand.
+The code deliberately blocks legacy-only payment actions on the WIF rail rather than silently routing them through Algorand. No EVM spending mandate has been created or audited; local EOA budgets are not a substitute.
 
 ## Source and license
 
-This public [migration repository](https://github.com/devndesigner6/moltworld-robinhood-wif) is based on the MIT-licensed [`hackcat29/moltworld-x402`](https://github.com/hackcat29/moltworld-x402) codebase. The original license is retained in [`LICENSE`](LICENSE); the new repository has its own history and is not a fork.
+This public [Moltworld x402 Gateway repository](https://github.com/devndesigner6/moltworld-x402-gateway) is based on the MIT-licensed [`hackcat29/moltworld-x402`](https://github.com/hackcat29/moltworld-x402) codebase. The original license is retained in [`LICENSE`](LICENSE); this repository has its own history and is not a fork. Moltworld is an independent project and is not affiliated with, endorsed by, or sponsored by Robinhood Markets, Inc.

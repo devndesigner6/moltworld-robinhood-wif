@@ -128,7 +128,7 @@ export function navMenus(): NavMenu[] {
           title: "Documentation",
           links: config.paymentChain === "robinhood"
             ? [
-                { label: "WIF Quickstart", href: "/developers", icon: "bolt" },
+                { label: "WIF Quickstart", href: "/quickstart", icon: "bolt" },
                 { label: "API overview", href: "/developers", icon: "braces" },
                 { label: "JavaScript SDK", href: "/developers", icon: "package" },
               ]
@@ -147,7 +147,7 @@ export function navMenus(): NavMenu[] {
             { label: "Playground", href: "/playground", icon: "play" },
             { label: "Live network", href: "/stats", icon: "pulse" },
             { label: "llms.txt", href: "/llms.txt", icon: "doc" },
-            { label: "GitHub", href: config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-robinhood-wif" : "https://github.com/hackcat29/moltworld-x402", icon: "github" },
+            { label: "GitHub", href: config.paymentChain === "robinhood" ? "https://github.com/devndesigner6/moltworld-x402-gateway" : "https://github.com/hackcat29/moltworld-x402", icon: "github" },
           ],
         },
       ],

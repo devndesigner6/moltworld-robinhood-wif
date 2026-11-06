@@ -23,6 +23,7 @@ import { usdcBalanceMicro } from "../chain/algod.js";
 import { coordination } from "./coordination.js";
 import { getPaymentState, PaymentState, setPaymentState, stateFromTransport } from "./state.js";
 import { evmPayerFromPayload, evmPaymentIdFromHeader, evmPaymentIdFromPayload } from "./evm-identity.js";
+import { creatorShareAtomic } from "./marketplace-evm.js";
 import {
   logicSigProgramFromPayload,
   agentSignatureValid,
@@ -429,10 +430,27 @@ async function finalize(c: Context, state: PaymentState): Promise<void> {
       responseBody: bytes.length <= MAX_STORED_RESPONSE_BYTES ? bytes : null,
       receipt,
     });
-    if (config.paymentChain === "algorand" && rebateMicro > 0) await addCredit(payer, "rebate", rebateMicro, state.requestId);
-    if (config.paymentChain === "algorand" && state.listing) {
-      const creatorShare = Math.floor((state.amountMicro * (100 - config.marketplaceFeePercent)) / 100);
-      await addCredit(state.listing.creator, "creator", creatorShare, state.requestId);
+    if (config.paymentChain === "algorand" && rebateMicro > 0) {
+      await addCredit(payer, "rebate", rebateMicro, state.requestId, String(rebateMicro), {
+        assetAddress: config.paymentAssetAddress,
+        assetSymbol: config.paymentAssetSymbol,
+        assetDecimals: config.paymentAssetDecimals,
+        network: config.networkCaip2,
+      });
+    }
+    // The default marketplace fee remains 15% (configurable via MARKETPLACE_FEE_PERCENT).
+    // Robinhood credits are ledger-only; no EVM payout/refund signer is invoked here.
+    if (state.listing) {
+      const creatorShareMicro = Math.floor((state.amountMicro * (100 - config.marketplaceFeePercent)) / 100);
+      const creatorAmountAtomic = config.paymentChain === "robinhood"
+        ? creatorShareAtomic(state.amountAtomic, config.marketplaceFeePercent)
+        : String(creatorShareMicro);
+      await addCredit(state.listing.creator, "creator", creatorShareMicro, state.requestId, creatorAmountAtomic, {
+        assetAddress: config.paymentAssetAddress,
+        assetSymbol: config.paymentAssetSymbol,
+        assetDecimals: config.paymentAssetDecimals,
+        network: config.networkCaip2,
+      });
     }
     c.res.headers.set("Moltworld-Receipt", encodeReceiptHeader(receipt));
     return;

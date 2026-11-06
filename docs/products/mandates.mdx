@@ -3,6 +3,8 @@ title: "Spending mandates"
 description: "Let an agent pay from your account, within limits the chain enforces, with a key only the agent holds."
 ---
 
+> **Legacy Algorand documentation:** This LogicSig/USDC mandate flow is not enabled on the Robinhood WIF deployment. Robinhood currently supports chat-only payments authorized by the user's wallet on every call. An EVM-compatible agent mandate is planned, not live.
+
 A mandate is a small Algorand program (a delegated LogicSig) that you sign once with your account key. It is bound to the agent's own key: the agent generates that key where it runs and only ever shares its address. Every payment must carry the agent's signature, so the credential you hand over cannot pay on its own, and the agent never sees your key.
 
 ## Limits

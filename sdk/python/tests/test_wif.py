@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest.mock import patch
 
 from eth_account import Account
 from x402 import x402ClientSync
@@ -8,6 +10,7 @@ from x402.mechanisms.evm.signers import EthAccountSigner
 from x402.schemas import PaymentRequired, PaymentRequirements
 
 from moltworld import MoltworldClient, MoltworldError
+from moltworld.client import EVM_EOA_AUTOPAY_ACK
 
 
 NETWORK = "eip155:4663"
@@ -39,7 +42,14 @@ def requirements(amount=ATOMIC, **extra):
 
 class WifSdkTests(unittest.TestCase):
     def make_client(self):
-        client = MoltworldClient(evm_private_key="0x" + "11" * 32, max_per_request_usd=2, budget_usd=2)
+        env = {
+            "NODE_ENV": "test",
+            "MOLTWORLD_ENV": "local",
+            "MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY": EVM_EOA_AUTOPAY_ACK,
+            "MOLTWORLD_EVM_KEY_ROLE": "dedicated",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            client = MoltworldClient(evm_private_key="0x" + "11" * 32, max_per_request_usd=2, budget_usd=2)
         client._health = {
             "payment_chain": "robinhood",
             "network_caip2": NETWORK,
@@ -89,7 +99,15 @@ class WifSdkTests(unittest.TestCase):
         client = self.make_client()
         with self.assertRaises(MoltworldError) as ctx:
             client.image("model", "prompt")
-        self.assertEqual(ctx.exception.code, "wif_chat_only")
+        self.assertEqual(ctx.exception.code, "wif_endpoint_unsupported")
+
+    def test_marketplace_path_is_available_but_disabled_server_response_is_not_paid(self):
+        client = self.make_client()
+        with patch.object(client, "_request", return_value=(503, {}, b'{"error":{"message":"disabled"}}')) as request:
+            with self.assertRaises(MoltworldError) as ctx:
+                client.market("weather-api", {"city": "Lagos"})
+        self.assertEqual(ctx.exception.status, 503)
+        request.assert_called_once()
 
 
 if __name__ == "__main__":

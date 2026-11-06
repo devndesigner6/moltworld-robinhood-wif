@@ -23,7 +23,9 @@ export async function handleModelRequest(c: Context): Promise<Response> {
   const provider = defaultProviderRegistry.getProvider(model.provider);
   const meta = {
     request_id: state.requestId,
-    price_micro_usdc: state.amountMicro,
+    ...(config.paymentChain === "robinhood"
+      ? { price_usd_micro: state.amountMicro, payment_asset: config.paymentAssetSymbol, payment_amount_atomic: state.amountAtomic }
+      : { price_micro_usdc: state.amountMicro }),
     receipt_url: `${config.publicDomain}/v1/receipts/${state.requestId}`,
   };
 

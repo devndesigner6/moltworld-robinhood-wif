@@ -8,7 +8,7 @@ import { defaultProviderRegistry } from "../providers/index.js";
 const origin = config.publicDomain;
 
 /**
- * Remote MCP never holds keys. Robinhood tools relay caller-signed WIF x402
+ * Remote MCP never holds keys. WIF tools relay caller-signed x402
  * payloads; the local SDK MCP is the optional autonomous signer.
  */
 export function createMcpRoute(gatewayFetch: (request: Request) => Promise<Response>): (request: Request) => Promise<Response> {
@@ -20,7 +20,7 @@ export function createMcpRoute(gatewayFetch: (request: Request) => Promise<Respo
   const robinhood = config.paymentChain === "robinhood";
 
   const handler = createMcpHandler(() => {
-    const server = new McpServer({ name: robinhood ? "moltworld-robinhood-wif" : "moltworld", version: "3.0.0" });
+    const server = new McpServer({ name: robinhood ? "moltworld-x402-gateway" : "moltworld", version: "3.0.0" });
 
     server.registerTool("list_models", {
       description: robinhood ? "List provider-backed chat models with reference USD 'from' quotes; paid calls settle in WIF on Robinhood Chain." : "List available Moltworld chat, image, voice and video models with their 'from' USDC price and x402 endpoint.",
@@ -52,6 +52,35 @@ export function createMcpRoute(gatewayFetch: (request: Request) => Promise<Respo
         description: "Describe the Robinhood WIF remote rail. Remote budgets are controlled by the caller; this server never holds a wallet.",
         inputSchema: z.object({}),
       }, async () => text({ payment_chain: "robinhood", chain_id: 4663, asset: "WIF", local_budgets_only: true, signs: false, endpoint: `${origin}/health` }));
+      server.registerTool("list_marketplace", {
+        description: "List approved WIF marketplace listings. The marketplace may be unavailable while its operator keeps the feature disabled.",
+        inputSchema: z.object({}),
+      }, async () => {
+        const res = await callJson("/v1/market");
+        return { isError: res.status >= 400, ...text({ status: res.status, body: res.body }) };
+      });
+      server.registerTool("get_marketplace_payment_requirements", {
+        description: "Get the unpaid 402 WIF challenge for one approved marketplace request; inspect it before the caller's wallet signs.",
+        inputSchema: z.object({ slug: z.string().regex(/^[a-z0-9][a-z0-9-]{2,47}$/), body: z.record(z.string(), z.unknown()) }),
+      }, async ({ slug, body }) => {
+        const res = await callJson(`/v1/market/${encodeURIComponent(slug)}/call`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        return { isError: res.status !== 402, ...text({ status: res.status, paymentRequired: res.headers.get("Payment-Required"), quote: res.headers.get("Moltworld-Quote"), error: res.status !== 402 ? res.body : undefined }) };
+      });
+      server.registerTool("call_marketplace", {
+        description: "Relay a caller-signed WIF x402 payment to an approved marketplace listing. This remote MCP never signs or pays.",
+        inputSchema: z.object({ slug: z.string().regex(/^[a-z0-9][a-z0-9-]{2,47}$/), body: z.record(z.string(), z.unknown()), paymentSignature: z.string().min(1) }),
+      }, async ({ slug, body, paymentSignature }) => {
+        const res = await callJson(`/v1/market/${encodeURIComponent(slug)}/call`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Payment-Signature": paymentSignature },
+          body: JSON.stringify(body),
+        });
+        return { isError: res.status >= 400, ...text({ status: res.status, body: res.body.slice(0, 100_000), receipt: res.headers.get("Moltworld-Receipt"), paymentResponse: res.headers.get("Payment-Response"), requestId: res.headers.get("Moltworld-Request-Id") }) };
+      });
       return server;
     }
 

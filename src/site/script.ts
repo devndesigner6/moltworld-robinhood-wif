@@ -460,11 +460,15 @@ export const SITE_JS = String.raw`
         wallets = await mod.createWallets(cfg());
       } catch (err) { list.replaceChildren(errorBox("Wallets unavailable: " + (err && err.message))); throw err; }
       if (!wallets.options.length) {
-        list.replaceChildren(el("span", { class: "note", text: "Open this page in MetaMask or Robinhood Wallet’s browser, or use a browser with its wallet extension." }));
+        const message = payConfig && payConfig.reownProjectId
+          ? "No compatible EVM wallet was detected. Open this page in a wallet browser or install a wallet extension."
+          : "No browser wallet detected. Add a public Reown project ID for mobile wallet access, or open this page in a wallet browser/extension.";
+        list.replaceChildren(el("span", { class: "note", text: message }));
         return wallets;
       }
       list.replaceChildren(...wallets.options.map((w) => {
         const b = el("button", { class: "btn btn-ghost btn-small wallet-btn", type: "button", "data-wallet": w.id });
+        if (w.id === "walletconnect") b.title = "Choose MetaMask or another compatible wallet in the WalletConnect modal";
         if (w.icon) b.append(el("img", { src: w.icon, alt: "", width: "18", height: "18" }));
         b.append(w.name);
         b.addEventListener("click", async () => {

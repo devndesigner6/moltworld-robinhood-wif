@@ -1,43 +1,42 @@
 ---
 title: "Introduction"
-description: "Base URL, authentication and conventions."
+description: "Base URL, x402 wallet authorization, and current Robinhood chat conventions."
 ---
 
 ## Base URL
 
 ```
-https://moltworld.xyz
+https://motoworld-wif.vercel.app
 ```
 
 ## Authentication
 
-There are no API keys. Paid endpoints use [x402](/concepts/how-payment-works): an unpaid request gets `402` with a `Payment-Required` header, and the paid retry carries a `Payment-Signature` header. All other endpoints are free and open.
+There are no API keys. The current paid surface is chat-only. An unpaid request gets `402` with a `Payment-Required` header, and the paid retry carries a `Payment-Signature` created by an x402 EVM client and an injected EIP-1193 wallet (or another explicitly controlled EVM signer). All other currently exposed discovery endpoints are free and open.
 
-In the endpoint pages, the `Payment-Signature` field is the signed x402 payment. The interactive playground on these pages can't sign one for you. Use the SDKs, or the [Playground](https://moltworld.xyz/playground) on moltworld.xyz to see the challenge for a body.
+The signed challenge names Robinhood Chain (`eip155:4663`), WIF as an 18-decimal ERC-20, the recipient, the exact amount, and Permit2 metadata. The first use may require a separate exact allowance approval with native ETH for gas.
 
 ## Conventions
 
 - Request and response bodies are JSON.
-- Amounts ending in `_micro` or named `microUsdc` are micro-USDC: 1,000,000 is $1.
+- `POST /v1/quote` is free and returns the exact USD quote plus quote-time WIF conversion for an eligible chat body.
 - Errors use `{ "error": { "code", "message" } }`. See [Errors](/api-reference/errors).
-- Every response has `x-request-id`. Paid responses also have `Moltworld-Request-Id`.
+- Every response has `x-request-id`. Paid responses also have `Moltworld-Request-Id` and `Moltworld-Receipt`.
 - Free endpoints are rate limited per IP. Limits return `429` with `Retry-After`.
 
-## Paid endpoints
+## Paid endpoints on Robinhood
 
-| Endpoint | Settles |
+| Endpoint | Payment |
 | --- | --- |
-| `POST /v1/models/{model}/chat/completions` | After the answer |
-| `POST /v1/models/{model}/images/generations` | Before, refunded on failure |
-| `POST /v1/models/{model}/audio/speech` | Before, refunded on failure |
-| `POST /v1/models/{model}/videos/generations` | Before, refunded on failure |
-| `POST /v1/market/{slug}/call` | After the creator's API answers |
+| `POST /v1/models/{model}/chat/completions` | WIF x402 authorization, then settle after a successful answer |
+
+Image, voice, video, marketplace, automatic refund, and agent mandate paths are not enabled on the Robinhood WIF rail. Their retained endpoint pages describe the isolated legacy Algorand deployment only.
 
 ## Discovery
 
 | Path | Contents |
 | --- | --- |
+| `/quickstart` | User-wallet and developer setup for the live WIF rail |
 | `/.well-known/x402` | x402 service descriptor |
 | `/llms.txt` | Plain text summary for language models |
 | `/.well-known/agent-card.json` | A2A agent card |
-| `/mcp` | Remote MCP server |
+| `/mcp` | Remote MCP server; caller-signed chat relay in Robinhood mode |

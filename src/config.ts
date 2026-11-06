@@ -35,6 +35,8 @@ export interface GatewayConfig {
   paymentAssetAddress: string;
   paymentAssetSymbol: "USDC" | "WIF";
   paymentAssetDecimals: number;
+  /** Public Reown/WalletConnect project id for browser mobile-wallet connections. */
+  reownProjectId?: string;
   usdcAsaId: string;
   payToAddress: string;
   robinhoodRpcUrl: string;
@@ -127,6 +129,7 @@ export const config: GatewayConfig = {
   paymentAssetAddress: paymentChain === "robinhood" ? wifTokenAddress : (isMainnet ? USDC_MAINNET_ASA_ID : USDC_TESTNET_ASA_ID),
   paymentAssetSymbol: paymentChain === "robinhood" ? "WIF" : "USDC",
   paymentAssetDecimals: paymentChain === "robinhood" ? 18 : 6,
+  reownProjectId: process.env.REOWN_PROJECT_ID?.trim() || undefined,
   usdcAsaId: isMainnet ? USDC_MAINNET_ASA_ID : USDC_TESTNET_ASA_ID,
   payToAddress,
   robinhoodRpcUrl,

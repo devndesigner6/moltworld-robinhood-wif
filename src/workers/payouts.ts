@@ -61,12 +61,19 @@ export async function processRefunds(): Promise<{ sent: number; failed: number; 
 }
 
 export async function processPayouts(): Promise<{ sent: number; failed: number; skipped: boolean }> {
-  await createPayoutsFromCredits("rebate", usdToMicroCeil(config.rebateMinPayoutUsd));
-  await createPayoutsFromCredits("creator", usdToMicroCeil(config.creatorPayoutMinUsd));
+  const currentAsset = {
+    assetAddress: config.paymentAssetAddress,
+    assetSymbol: config.paymentAssetSymbol,
+    assetDecimals: config.paymentAssetDecimals,
+    network: config.networkCaip2,
+  };
+  const includeLegacyAlgorand = config.paymentChain === "algorand";
+  await createPayoutsFromCredits("rebate", usdToMicroCeil(config.rebateMinPayoutUsd), currentAsset, includeLegacyAlgorand);
+  await createPayoutsFromCredits("creator", usdToMicroCeil(config.creatorPayoutMinUsd), currentAsset, includeLegacyAlgorand);
   const send = resolveSender();
   if (!send) return { sent: 0, failed: 0, skipped: true };
 
-  const batch = await claimPendingPayouts(16);
+  const batch = await claimPendingPayouts(16, currentAsset, includeLegacyAlgorand);
   if (!batch.length) return { sent: 0, failed: 0, skipped: false };
   const ids = batch.map((p) => p.id);
   try {

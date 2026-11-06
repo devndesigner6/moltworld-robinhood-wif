@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Moltworld",
-  "description": "AI models for apps and agents, paid per request in USDC on Algorand through x402.",
+  "description": "Chat models paid per request in WIF on Robinhood Chain through x402; legacy Algorand docs are labeled separately.",
   "colors": {
     "primary": "#0E9F66",
     "light": "#3DDC97",
@@ -57,7 +57,7 @@
             ]
           },
           {
-            "group": "Products",
+            "group": "Legacy Algorand products",
             "pages": [
               "products/mandates",
               "products/marketplace"

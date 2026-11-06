@@ -12,8 +12,13 @@ import { toClientEvmSigner, PERMIT2_ADDRESS } from "@x402/evm";
 import { agentKeyFromSecret, generateAgentKey, MoltworldClient, MoltworldError } from "./index.js";
 
 const legacyAgentKeyFile = () => process.env.MOLTWORLD_AGENT_KEY_FILE || join(homedir(), ".moltworld", "agent.key");
-const evmAgentKeyFile = () => join(homedir(), ".moltworld", "robinhood-agent.key");
+const evmAgentKeyFile = () => join(homedir(), ".moltworld", "wif-agent.key");
 const ROBINHOOD_RPC_URL = process.env.MOLTWORLD_EVM_RPC_URL || "https://rpc.mainnet.chain.robinhood.com";
+/**
+ * EVM EOA auto-payment is deliberately not a mandate. It is a local/process
+ * budget around an unrestricted key, so opting in must be explicit and noisy.
+ */
+export const EVM_EOA_AUTOPAY_ACK = "I_UNDERSTAND_LOCAL_EVM_EOA_AUTOPAY_IS_NOT_A_MANDATE";
 const erc20AllowanceAbi = [{
   type: "function",
   name: "allowance",
@@ -69,9 +74,39 @@ function evmPrivateKey(): `0x${string}` | undefined {
   return value as `0x${string}`;
 }
 
-function clientFromEnv(): { client: MoltworldClient; robinhood: boolean } {
+function isProductionEnvironment(): boolean {
+  return [process.env.NODE_ENV, process.env.MOLTWORLD_ENV]
+    .some((value) => value?.trim().toLowerCase() === "production");
+}
+
+function isLocalDevelopmentEnvironment(): boolean {
+  const values = [process.env.NODE_ENV, process.env.MOLTWORLD_ENV]
+    .filter((value): value is string => Boolean(value?.trim()));
+  return values.length > 0 && values.every((value) => ["local", "development", "dev", "test"].includes(value.trim().toLowerCase()));
+}
+
+/** Refuse unrestricted EOA auto-payment unless this is explicitly local-only. */
+export function assertEvmEoaAutopayAllowed(): void {
+  if (isProductionEnvironment()) {
+    throw new Error("Refusing EVM EOA auto-payment in production. This key has no owner-authorized on-chain cap or mandate; use caller-signed/browser or mandate architecture instead.");
+  }
+  if (!isLocalDevelopmentEnvironment()) {
+    throw new Error("Refusing EVM EOA auto-payment outside local/development environments. This key has no owner-authorized on-chain cap or mandate.");
+  }
+  const role = process.env.MOLTWORLD_EVM_KEY_ROLE?.trim().toLowerCase();
+  if (role !== "dedicated") {
+    throw new Error("Refusing EVM EOA auto-payment for a master/primary wallet key. Use only a dedicated, disposable local EOA; this path is not a mandate.");
+  }
+  if (process.env.MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY !== EVM_EOA_AUTOPAY_ACK) {
+    throw new Error(`EVM EOA auto-payment is disabled by default. For local/development only, set MOLTWORLD_ALLOW_EVM_EOA_AUTOPAY=${EVM_EOA_AUTOPAY_ACK}. Use a dedicated disposable EOA, never a user's master key. The budget is local/process-only, not an owner-authorized on-chain cap or mandate.`);
+  }
+  console.error("WARNING: local EVM EOA auto-payment is enabled. This is an unrestricted dedicated EOA key with local/process budgets only—not an owner-authorized on-chain cap or mandate. Never use a user's master key.");
+}
+
+export function clientFromEnv(): { client: MoltworldClient; robinhood: boolean } {
   const evmSecret = evmPrivateKey();
   if (evmSecret) {
+    assertEvmEoaAutopayAllowed();
     const account = privateKeyToAccount(evmSecret);
     const publicClient = createPublicClient({ chain: robinhoodChain, transport: http(ROBINHOOD_RPC_URL) });
     const evmSigner = toClientEvmSigner(account);
@@ -120,12 +155,15 @@ const failure = (err: unknown) => ({
 }) as ReturnType<typeof json> & { isError: true };
 
 function paidSummary(result: Awaited<ReturnType<MoltworldClient["call"]>>, client: MoltworldClient) {
-  return { output: result.data, paid_usdc: result.paidMicro / 1_000_000, receipt_verified: result.verification?.ok ?? false, request_id: result.requestId, txid: result.receipt?.txid, session_spent_usdc: client.spentUsd };
+  const paid = result.receipt?.assetSymbol === "WIF"
+    ? { paid_usd_quote: result.paidMicro / 1_000_000, paid_token_symbol: "WIF", paid_token_amount_atomic: result.receipt.amountAtomic, paid_token_decimals: result.receipt.assetDecimals }
+    : { paid_usdc: result.paidMicro / 1_000_000 };
+  return { output: result.data, ...paid, receipt_verified: result.verification?.ok ?? false, request_id: result.requestId, txid: result.receipt?.txid, session_spent_usd: client.spentUsd };
 }
 
 export async function main() {
   const { client, robinhood } = clientFromEnv();
-  const server = new McpServer({ name: robinhood ? "moltworld-robinhood-wif" : "moltworld-wallet", version: "1.0.0" });
+  const server = new McpServer({ name: robinhood ? "moltworld-x402-gateway" : "moltworld-wallet", version: "1.0.0" });
   const chatMessage = z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() });
 
   server.registerTool("moltworld_models", {
@@ -138,11 +176,30 @@ export async function main() {
   });
 
   server.registerTool("moltworld_chat", {
-    description: robinhood ? "Paid chat completion on Robinhood Chain using WIF and Permit2; signs only within local USD budget caps." : "Paid chat completion. Pays automatically in USDC within this server's spend limits; unused max_tokens budget is rebated.",
+    description: robinhood ? "Development-only WIF chat payment through a dedicated EOA. Requires explicit local opt-in; process budgets are not an on-chain mandate." : "Paid chat completion. Pays automatically in USDC within this server's spend limits; unused max_tokens budget is rebated.",
     inputSchema: z.object({ model: z.string(), messages: z.array(chatMessage).min(1), max_tokens: z.number().int().positive().optional() }),
   }, async ({ model, messages, max_tokens }) => {
     try { return json(paidSummary(await client.chat(model, { messages, max_tokens }), client)); } catch (err) { return failure(err); }
   });
+
+  if (robinhood) {
+    server.registerTool("moltworld_marketplace", {
+      description: "List approved WIF marketplace listings; the live service may keep this feature disabled.",
+      inputSchema: z.object({}),
+    }, async () => {
+      try {
+        const res = await fetch(`${client.baseUrl}/v1/market`);
+        const body = await res.json();
+        return json({ status: res.status, body });
+      } catch (err) { return failure(err); }
+    });
+    server.registerTool("moltworld_market", {
+      description: "Development-only marketplace payment using a dedicated local EOA and process USD caps; this is not an on-chain mandate.",
+      inputSchema: z.object({ slug: z.string().regex(/^[a-z0-9][a-z0-9-]{2,47}$/), body: z.record(z.string(), z.unknown()) }),
+    }, async ({ slug, body }) => {
+      try { return json(paidSummary(await client.market(slug, body), client)); } catch (err) { return failure(err); }
+    });
+  }
 
   if (!robinhood) {
     server.registerTool("moltworld_image", { description: "Paid image generation (refunded if it fails).", inputSchema: z.object({ model: z.string(), prompt: z.string(), size: z.string().optional(), n: z.number().int().optional() }) }, async ({ model, prompt, size, n }) => {
@@ -153,7 +210,9 @@ export async function main() {
     });
   }
 
-  server.registerTool("moltworld_spend", { description: robinhood ? "Local USD budget and WIF wallet address; budget is local, not an on-chain cap." : "Wallet address and USDC spent in this session.", inputSchema: z.object({}) }, async () => json({ address: client.address, session_spent_usdc: client.spentUsd, budget_usdc: Number(process.env.MOLTWORLD_BUDGET_USD ?? 5), payment_chain: robinhood ? "robinhood" : undefined, chain_id: robinhood ? 4663 : undefined }));
+  server.registerTool("moltworld_spend", { description: robinhood ? "Local USD budget and WIF wallet address; budget is local, not an on-chain cap." : "Wallet address and USDC spent in this session.", inputSchema: z.object({}) }, async () => json(robinhood
+    ? { address: client.address, session_spent_usd: client.spentUsd, budget_usd: Number(process.env.MOLTWORLD_BUDGET_USD ?? 5), payment_chain: "robinhood", chain_id: 4663, asset: "WIF", onchain_mandate: false }
+    : { address: client.address, session_spent_usdc: client.spentUsd, budget_usdc: Number(process.env.MOLTWORLD_BUDGET_USD ?? 5) }));
   await server.connect(new StdioServerTransport());
 }
 
