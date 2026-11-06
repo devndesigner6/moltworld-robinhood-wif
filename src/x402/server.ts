@@ -12,12 +12,17 @@ import {
 import { ModelRegistry, defaultModelRegistry, getModelEndpoint, getModelDiscoveryDescription, ModelDefinition } from "../models/registry.js";
 import { paymentFlowFor, priceFromState, registerPaymentHooks } from "../payments/gateway.js";
 import { WIF_CHAT_MAX_TIMEOUT_SECONDS } from "../payments/wif-challenges.js";
+import { isPrimerFacilitatorUrl, withPrimerPermit2Compatibility } from "./primer-compat.js";
 
 export function createX402Server(registry: ModelRegistry = defaultModelRegistry): {
   server: x402ResourceServer;
   routes: RoutesConfig;
 } {
-  const facilitatorClient = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+  const upstreamFacilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+  const facilitatorClient =
+    config.paymentChain === "robinhood" && isPrimerFacilitatorUrl(config.facilitatorUrl)
+      ? withPrimerPermit2Compatibility(upstreamFacilitator)
+      : upstreamFacilitator;
   const server = new x402ResourceServer(facilitatorClient);
 
   if (config.paymentChain === "robinhood") {
