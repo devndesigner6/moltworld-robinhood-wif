@@ -688,8 +688,12 @@ function mandates(c: Context) {
           </div>
           <div class="card">
             <h2>2. Create a separate agent key</h2>
-            <p>Run this on the machine that will run your <strong>local stdio MCP</strong>. It stores the session private key locally with restricted file permissions and prints only its public address.</p>
-            <pre class="mandate-code"><code>moltworld-mcp wif-session-keygen</code></pre>
+            <p>Run this source-build command on the machine that will run your <strong>local stdio MCP</strong>. It stores the session private key locally with restricted file permissions and prints only its public address.</p>
+            <pre class="mandate-code"><code>git clone https://github.com/devndesigner6/moltworld-x402-gateway.git
+cd moltworld-x402-gateway
+pnpm install --frozen-lockfile
+pnpm --dir sdk/js build
+node sdk/js/dist/mcp.js wif-session-keygen</code></pre>
             <p>Copy only the printed address into the form. Never paste the session key here. The hosted remote MCP stays keyless.</p>
           </div>
         </div>

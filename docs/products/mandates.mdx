@@ -15,7 +15,11 @@ The deployed contract is a narrow policy wallet: it fixes the owner, WIF token, 
 Create the agent session key on the same machine as the local stdio MCP:
 
 ```bash
-moltworld-mcp wif-session-keygen
+git clone https://github.com/devndesigner6/moltworld-x402-gateway.git
+cd moltworld-x402-gateway
+pnpm install --frozen-lockfile
+pnpm --dir sdk/js build
+node sdk/js/dist/mcp.js wif-session-keygen
 ```
 
 This prints the public address and stores the private session key locally at `~/.moltworld/wif-agent.key` with mode `0600`. Enter only the public address in the wizard. Do not give an agent the owner's wallet key. The local MCP requires the mandate address, owner address, and expected gateway `pay_to` to match; the hosted remote MCP remains keyless and caller-signed.
